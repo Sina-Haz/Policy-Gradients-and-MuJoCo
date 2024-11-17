@@ -1,52 +1,52 @@
-import numpy as np
+import torch 
+from dataclasses import dataclass
 import mujoco
 import mujoco_viewer as mjv
 from typing import Union, Tuple
 
-class Node:
-    def __init__(self, q: np.array,  qdot:np.array = np.array([0, 0]), parent=None) -> None:
-        self.q = q
-        self.qdot = qdot
-        self.parent = parent
-        self.ctrl = None
 
+@dataclass
+class State:
+    x:float
+    y:float
+    xdot:float
+    ydot:float
+
+    def to_tensor(self) -> torch.Tensor:
+        return torch.Tensor([self.x, self.y, self.xdot, self.ydot])
     
-    def __repr__(self) -> str:
-        return f'Node(q = {self.q}, qdot = {self.qdot}, ctrl = {self.ctrl})'
+    def dist(self, other: 'State') -> float:
+        s1, s2 = self.to_tensor(), other.to_tensor()
+        return torch.linalg.norm(s1 - s2)
+    
+    @classmethod
+    def from_tensor(data: torch.Tensor) -> 'State':
+        return State(data[0].item(), data[1].item(), data[2].item(), data[3].item())
 
-    def __eq__(self, other):
-        return np.array_equal(self.q, other.q) and np.array_equal(self.qdot, other.qdot) and (self.parent == other.parent) and np.array_equal(self.ctrl, other.ctrl)
+# Global Parameters
+gamma = 0.99
+model = mujoco.MjModel.from_xml_path('nav.xml')
+data = mujoco.MjData(model)
+dt = 0.1
+epsilon = 0.1
+goal = State(0.9, 0, 0, 0)
+collision_penalty = 1e-3 # add a small collision penalty so it learns that its a bad behavior
+sample_bounds = [[-.2, 1.1], [-.36, .36]]
 
 
-def weighted_euclidean_distance(x1: Node, x2: Node, pw: float = 1, vw: float = 0.1) -> float:
-    '''
-    Computes weighted euclidean distance between nodes x1 and x2 with pw being the position weight and vw the velocity weight
-    Since for this application we mainly want to reach goal region, don't care as much about velocity and weigh position more
-    '''
-    pos_diff = np.linalg.norm(x2.q - x1.q)
-    v_diff = np.linalg.norm(x2.qdot - x1.qdot)
-    weighted_dist = np.sqrt(pw*pos_diff**2 + vw*v_diff**2)
-    return weighted_dist
-
-
-
-def ctrl_effort_distance(x1: Node, x2: Node) -> float:
-    raise NotImplementedError
-
-def sample_state(bounds: np.array)->Node:
+def sample_state(bounds: torch.Tensor)->State:
     '''
     Uniformly samples: 
-        - configuration within bounds  
-        - qdot from standard normal
-        - Returns a node with this data and uninitialized parent
+        - q within bounds  
+        - qdot is zero
     '''
     # Bounds have the shape (q, 2) -> each row is for a q_i has lower and upper bound for q_i
-    q = np.random.uniform(low=bounds[:, 0], high=bounds[:, 1])
+    q = torch.uniform(low=bounds[:, 0], high=bounds[:, 1])
 
     # Return qdot from a standard normal population with same shape as q
-    qdot = np.random.normal(size=q.shape)
+    qdot = torch.zeros_like(q)
 
-    return Node(q=q, qdot=qdot)
+    return State.from_tensor(torch.cat((q,qdot)))
 
 
 def sample_non_colliding(sampler_fn, collision_checker, sample_bounds):
@@ -56,21 +56,65 @@ def sample_non_colliding(sampler_fn, collision_checker, sample_bounds):
 
     sampler_fn should only need bounds as argument (everything else either keyword argument or not provided here)
 
-    collision checker should take in output of sampler function and return True if no collision, False if collision
+    collision checker should take in output of sampler function and return False if no collision, True if collision
     '''
     while True:
         sample = sampler_fn(sample_bounds)
         # If no collision from sample -> return this
-        if collision_checker(sample):
+        if not collision_checker(sample):
             break
     
     return sample
 
-def sample_ctrl(ctrl_lim)->np.array:
-    '''
-    Uniformly samples an fx, fy control within the defined control limits. Returns as a vector of shape (2,)
-    '''
-    return np.random.uniform(ctrl_lim[0], ctrl_lim[1], size=(2,))
+
+def is_colliding(state: State) -> bool:
+    # Set the position to the state
+    data.qpos[:] = state.to_tensor()[:2].numpy()
+    data.qvel[:] = [0,0]
+
+    mujoco.mj_forward(model, data) # step the simulation to update collision data
+
+    return data.ncon == 0
+
+
+def transition(state: State, action: torch.Tensor) -> Tuple[State, bool]:
+    # Set mujoco state and control
+    t = state.to_tensor().numpy()
+    q, qdot = t[:2], t[2:]
+    data.qpos[:] = q
+    data.qvel[:] = qdot
+    data.ctrl = action.numpy()
+    data.time = 0
+
+    collides = False
+
+    while data.time < dt:
+        mujoco.mj_step(model, data)
+
+        if data.ncon > 0:
+            collides = True
+        
+    q, qdot = torch.Tensor(data.qpos.copy()), torch.Tensor(data.qvel.copy())
+    new = State.from_tensor(torch.cat(q, qdot))
+
+    return new, collides
+
+def reward(state: State, collided: bool =False) -> float:
+    r = 0
+    if state.dist(goal) <= epsilon:
+        r+=1
+    
+    if collided:
+        r-= collision_penalty
+
+    return r
+
+def rollout(policy):
+    # Sample first state uniformly s.t. it's not colliding
+    s0 = sample_non_colliding(sampler_fn=sample_state, collision_checker=is_colliding, sample_bounds=sample_bounds)
+
+
+
 
 
 
