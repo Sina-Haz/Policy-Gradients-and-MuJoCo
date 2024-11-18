@@ -99,19 +99,7 @@ def transition(state: State, action: torch.Tensor) -> Tuple[State, bool]:
 
     return new, collides
 
-def reward(state: State, collided: bool =False) -> float:
-    r = 0
-    if state.dist(goal) <= epsilon:
-        r+=1
-    
-    if collided:
-        r-= collision_penalty
 
-    return r
-
-def rollout(policy):
-    # Sample first state uniformly s.t. it's not colliding
-    s0 = sample_non_colliding(sampler_fn=sample_state, collision_checker=is_colliding, sample_bounds=sample_bounds)
 
 
 
