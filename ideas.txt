@@ -1,0 +1,6 @@
+Some hyper params to play with:
+ - gamma (can reduce variance of our estimated policy gradient)
+ - number of trajectories to collect per iteration
+ - batch gradient descent (sample from trajectory) vs stochastic (one transition) vs whole trajectory
+ - collision penalty (part of the reward function)
+ - maybe train value function for a few iterations before training value + policy 

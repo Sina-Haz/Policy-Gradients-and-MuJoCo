@@ -66,6 +66,9 @@ def rollout(policy):
     # Sample first state uniformly s.t. it's not colliding
     s0 = sample_non_colliding(sampler_fn=sample_state, collision_checker=is_colliding, sample_bounds=sample_bounds)
 
+    traj, terminal_s = [], False
+    # We define terminal state as the state where we are within epsilon of goal
+    while len()
 
 if __name__ == '__main__':
     pi = Policy(12)
