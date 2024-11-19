@@ -18,8 +18,11 @@ class Policy(nn.Module):
         self.var = var
         self.gamma = var_decay
     
-    def forward(self, state: torch.Tensor):
+    def forward(self, state: Tuple[torch.Tensor, State]):
         # Ensure State.to_tensor() is called before passing it to forward
+        if isinstance(state, State):
+            state = state.to_tensor()
+        
         out1 = F.leaky_relu(self.layer1(state))
         out2 = F.tanh(self.layer2(out1))
         return out2
@@ -39,7 +42,7 @@ class Policy(nn.Module):
 
         returns tensor of shape (2, action.shape[0]): first row is the action at each DoF, 2nd row is the log prob of those actions
         '''
-        mu = self.forward(state)
+        mu = self.forward(state.to_tensor())
         distr = dist.Normal(mu, self.var)
 
         action = distr.sample()
@@ -52,7 +55,7 @@ class Policy(nn.Module):
 
 
 
-def reward(state: State, collided: bool =False) -> float:
+def reward(state: State, collided: bool=False) -> float:
     r = 0
     if state.dist(goal) <= epsilon:
         r+=1
@@ -62,18 +65,46 @@ def reward(state: State, collided: bool =False) -> float:
 
     return r
 
-def rollout(policy):
+def rollout(policy: Policy, max_len = 100):
+    '''
+    Given a policy:
+     - Sample s_0 uniformly in C_free
+     - set a finite horizon in order to avoid trajectory getting too long
+     - At each timestep we store: (s_t, a_t, s_t+1, r_t) and logprob(a|s)
+
+     return list of lists where each elt = [s_t, a_t, s_t+1, r_t, logprob(a_t|s_t)]
+    '''
     # Sample first state uniformly s.t. it's not colliding
     s0 = sample_non_colliding(sampler_fn=sample_state, collision_checker=is_colliding, sample_bounds=sample_bounds)
 
     traj, terminal_s = [], False
     # We define terminal state as the state where we are within epsilon of goal
-    while len()
+    
+    s_t, coll = s0, False
+    while len(traj) < 100 and not terminal_s:
+        # Collect reward given state and sample an action given state (and log prob)
+        r_t = reward(s_t, collided=coll)
+        a_t, logprob_a_t = policy.sample(s_t).unbind(0)
+
+        # transition based on environment, current state and action
+        s_t1, coll = transition(s_t, a_t)
+
+        # Collect this trajectory
+        traj.append([s_t, a_t, s_t1, r_t, logprob_a_t])
+
+        # Determine if this upcoming state is a terminal state
+        if s_t1.dist(goal) < epsilon: 
+            terminal_s = True
+
+        # reset current state
+        s_t = s_t1
+
+    return traj
 
 if __name__ == '__main__':
     pi = Policy(12)
 
-    state = torch.Tensor([0, 0, 0, 0])
+    state = State(0,0,0,0)
 
     mu = pi(state)
     
@@ -86,5 +117,8 @@ if __name__ == '__main__':
     logprobs = sampled[1,:].sum()
 
     logprobs.backward()
+
+    traj = rollout(pi)
+    print(f'Length of trajectory: {len(traj)}\n first two steps: {traj[:2]}')
 
     

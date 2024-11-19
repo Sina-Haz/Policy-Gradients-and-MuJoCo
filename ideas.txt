@@ -4,3 +4,4 @@ Some hyper params to play with:
  - batch gradient descent (sample from trajectory) vs stochastic (one transition) vs whole trajectory
  - collision penalty (part of the reward function)
  - maybe train value function for a few iterations before training value + policy 
+ - max Horizon per trajectory

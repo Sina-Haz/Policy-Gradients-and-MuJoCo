@@ -3,7 +3,10 @@ from dataclasses import dataclass
 import mujoco
 import mujoco_viewer as mjv
 from typing import Union, Tuple
+import numpy as np
 
+np.set_printoptions(precision=3)
+torch.set_printoptions(precision=3)
 
 @dataclass
 class State:
@@ -20,8 +23,11 @@ class State:
         return torch.linalg.norm(s1 - s2)
     
     @classmethod
-    def from_tensor(data: torch.Tensor) -> 'State':
-        return State(data[0].item(), data[1].item(), data[2].item(), data[3].item())
+    def from_tensor(cls, data: torch.Tensor) -> 'State':
+        return cls(data[0].item(), data[1].item(), data[2].item(), data[3].item())
+    
+    def __repr__(self, prec = 3) -> str:
+        return f"State(x={self.x:.{prec}f}, y={self.y:.{prec}f}, xdot={self.xdot:.{prec}f}, ydot={self.ydot:.{prec}f})"
 
 # Global Parameters
 gamma = 0.99
@@ -31,22 +37,27 @@ dt = 0.1
 epsilon = 0.1
 goal = State(0.9, 0, 0, 0)
 collision_penalty = 1e-3 # add a small collision penalty so it learns that its a bad behavior
-sample_bounds = [[-.2, 1.1], [-.36, .36]]
+sample_bounds = torch.Tensor([[-.2, 1.1], [-.36, .36]])
 
 
-def sample_state(bounds: torch.Tensor)->State:
-    '''
-    Uniformly samples: 
-        - q within bounds  
+def sample_state(bounds: torch.Tensor) -> State:
+    """
+    Uniformly samples:
+        - q within bounds
         - qdot is zero
-    '''
-    # Bounds have the shape (q, 2) -> each row is for a q_i has lower and upper bound for q_i
-    q = torch.uniform(low=bounds[:, 0], high=bounds[:, 1])
+    """
+    # Convert bounds to NumPy array
+    bounds_np = bounds.numpy()
 
-    # Return qdot from a standard normal population with same shape as q
-    qdot = torch.zeros_like(q)
+    # Sample q within bounds
+    q = np.random.uniform(low=bounds_np[:, 0], high=bounds_np[:, 1])
 
-    return State.from_tensor(torch.cat((q,qdot)))
+    # Initialize qdot as zeros with the same shape as q
+    qdot = np.zeros_like(q)
+
+    # Combine q and qdot into a single tensor and create a State object
+    q_qdot = torch.tensor(np.concatenate((q, qdot)))
+    return State.from_tensor(q_qdot)
 
 
 def sample_non_colliding(sampler_fn, collision_checker, sample_bounds):
@@ -81,9 +92,9 @@ def transition(state: State, action: torch.Tensor) -> Tuple[State, bool]:
     # Set mujoco state and control
     t = state.to_tensor().numpy()
     q, qdot = t[:2], t[2:]
-    data.qpos[:] = q
-    data.qvel[:] = qdot
-    data.ctrl = action.numpy()
+    data.qpos[:] = q.copy()
+    data.qvel[:] = qdot.copy()
+    data.ctrl = action.detach().numpy()
     data.time = 0
 
     collides = False
@@ -95,7 +106,7 @@ def transition(state: State, action: torch.Tensor) -> Tuple[State, bool]:
             collides = True
         
     q, qdot = torch.Tensor(data.qpos.copy()), torch.Tensor(data.qvel.copy())
-    new = State.from_tensor(torch.cat(q, qdot))
+    new = State.from_tensor(torch.cat((q, qdot)))
 
     return new, collides
 
