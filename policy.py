@@ -65,7 +65,7 @@ def reward(state: State, collided: bool=False) -> float:
 
     return r
 
-def rollout(policy: Policy, max_len = 100):
+def rollout(policy: Policy, max_len = 5):
     '''
     Given a policy:
      - Sample s_0 uniformly in C_free
@@ -81,7 +81,7 @@ def rollout(policy: Policy, max_len = 100):
     # We define terminal state as the state where we are within epsilon of goal
     
     s_t, coll = s0, False
-    while len(traj) < 100 and not terminal_s:
+    while len(traj) < max_len and not terminal_s:
         # Collect reward given state and sample an action given state (and log prob)
         r_t = reward(s_t, collided=coll)
         a_t, logprob_a_t = policy.sample(s_t).unbind(0)
@@ -119,6 +119,6 @@ if __name__ == '__main__':
     logprobs.backward()
 
     traj = rollout(pi)
-    print(f'Length of trajectory: {len(traj)}\n first two steps: {traj[:2]}')
+    # print(f'Length of trajectory: {len(traj)}\n first two steps: {traj[:2]}')
 
     

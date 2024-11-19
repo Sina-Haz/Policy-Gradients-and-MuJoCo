@@ -79,6 +79,7 @@ def sample_non_colliding(sampler_fn, collision_checker, sample_bounds):
 
 
 def is_colliding(state: State) -> bool:
+    global model, data
     # Set the position to the state
     data.qpos[:] = state.to_tensor()[:2].numpy()
     data.qvel[:] = [0,0]
@@ -89,22 +90,33 @@ def is_colliding(state: State) -> bool:
 
 
 def transition(state: State, action: torch.Tensor) -> Tuple[State, bool]:
+    global model, data
     # Set mujoco state and control
     t = state.to_tensor().numpy()
     q, qdot = t[:2], t[2:]
     data.qpos[:] = q.copy()
     data.qvel[:] = qdot.copy()
-    data.ctrl = action.detach().numpy()
+    mujoco.mj_forward(model, data)  # Ensure the state is initialized correctly
     data.time = 0
+
+    timestep = model.opt.timestep  # Get the model's timestep
+    num_steps = int(dt / timestep)  # Calculate number of steps needed
 
     collides = False
 
-    while data.time < dt:
+    # print(f"Before q={data.qpos}, qdot={data.qvel}, ctrl={data.ctrl}") DEBUG 
+    # Define noisy control:
+    ctrl = action.detach().numpy().copy() + np.random.normal([0, 0], [0.1, 0.1])
+
+    for _ in range(num_steps):
+        data.ctrl[:] = ctrl
         mujoco.mj_step(model, data)
 
         if data.ncon > 0:
             collides = True
         
+    # print(f"After: q={data.qpos}, qdot={data.qvel}\n")
+
     q, qdot = torch.Tensor(data.qpos.copy()), torch.Tensor(data.qvel.copy())
     new = State.from_tensor(torch.cat((q, qdot)))
 
