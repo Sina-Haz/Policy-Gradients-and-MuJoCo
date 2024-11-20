@@ -12,7 +12,7 @@ class Value(nn.Module):
     Learns a parametrized critic network that takes in state and returns v(s),
     which is the expected future reward from the state
     '''
-    def __init__(self, hidden_size, input_size = 2, output_size = 1) -> None:
+    def __init__(self, hidden_size, input_size = 4, output_size = 1) -> None:
         super(Value, self).__init__()
         self.layer1 = nn.Linear(input_size, hidden_size)
         self.layer2 = nn.Linear(hidden_size, output_size)
@@ -23,6 +23,22 @@ class Value(nn.Module):
         v_s = self.layer2(out1)
         return v_s
     
-    def __call__(self, *args: Any, **kwds: Any) -> Any:
-        return super().__call__(*args, **kwds)
+
+
+
+
+
+def compute_gain(traj, gamma = 0.99):
+
+    rewards = [x[3] for x in traj]
+    T = len(rewards)
+    gains = np.zeros(T)
+    G = 0
+
+    for t in range(T-1, -1, -1):
+        #Gt = rt + gamma * Gt+1
+        G = rewards[t] + gamma * G
+        gains[t] = G
+    return gains
+
 
