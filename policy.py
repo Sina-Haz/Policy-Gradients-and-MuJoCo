@@ -65,7 +65,7 @@ def reward(state: State, collided: bool=False) -> float:
 
     return r
 
-def rollout(policy: Policy, max_len = 5):
+def rollout(policy: Policy, max_len = 200):
     '''
     Given a policy:
      - Sample s_0 uniformly in C_free
