@@ -42,3 +42,17 @@ def compute_gain(traj, gamma = 0.99):
     return gains
 
 
+
+
+
+#average reward per step as a function of the number of episodes used for training
+#will need to track total_reward and total_steps
+def avg_reward_per_step(traj, total_reward, total_steps):
+
+    ep_reward = sum(x[3] for x in traj)
+    total_reward += ep_reward
+    total_steps += len(traj)
+    avg_r_per_step = total_reward / total_steps
+
+    #if we want to plot curve, we can add the avg_r_per_step of each episode to a list
+    return avg_r_per_step, total_reward, total_steps
