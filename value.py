@@ -26,19 +26,19 @@ class Value(nn.Module):
 
 
 
-
-
 def compute_gain(traj, gamma = 0.99):
+    '''
+    Compute gain and add it in place as the last element to each element in trajectories
+    '''
 
     rewards = [x[3] for x in traj]
     T = len(rewards)
-    gains = np.zeros(T)
     G = 0
 
     for t in range(T-1, -1, -1):
         #Gt = rt + gamma * Gt+1
         G = rewards[t] + gamma * G
-        gains[t] = G
-    return gains
+        traj[t].append(G)
+    return traj
 
 

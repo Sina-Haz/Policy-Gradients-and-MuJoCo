@@ -1,9 +1,10 @@
 from typing import Any
 from utils import *
 import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
 import torch.distributions as dist
+from collections import deque, namedtuple
+import random
 
 
 class Policy(nn.Module):
@@ -18,11 +19,8 @@ class Policy(nn.Module):
         self.var = var
         self.gamma = var_decay
     
-    def forward(self, state: Tuple[torch.Tensor, State]):
-        # Ensure State.to_tensor() is called before passing it to forward
-        if isinstance(state, State):
-            state = state.to_tensor()
-        
+    def forward(self, state: torch.tensor):
+
         out1 = F.leaky_relu(self.layer1(state))
         out2 = F.tanh(self.layer2(out1))
         return out2
@@ -30,11 +28,8 @@ class Policy(nn.Module):
     def decay_variance(self):
         self.var *= self.gamma
     
-    # def __call__(self, *args: Any, **kwds: Any) -> Any:
-    #     mu = super().__call__(*args, **kwds)
-    #     return mu
     
-    def sample(self, state: State) -> torch.Tensor:
+    def sample(self, state: torch.tensor) -> torch.Tensor:
         '''
         This method sample's an action given a state.
         Does this by computing a predicted mean mu for each action DoF and samples
@@ -42,10 +37,10 @@ class Policy(nn.Module):
 
         returns tensor of shape (2, action.shape[0]): first row is the action at each DoF, 2nd row is the log prob of those actions
         '''
-        mu = self.forward(state.to_tensor())
+        mu = self.forward(state)
         distr = dist.Normal(mu, self.var)
 
-        action = distr.sample()
+        action = torch.clip(distr.sample(), -1, 1).clone()
         # print(f'action: {action}, {action.shape}') DEBUG PRINT
 
         logprobs = distr.log_prob(action)
@@ -54,9 +49,34 @@ class Policy(nn.Module):
         return torch.stack((action, logprobs))
 
 
+Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward', 'logprob', 'gain'))
 
-def reward(state: State, collided: bool=False) -> float:
+class ReplayMemory(object):
+    def __init__(self, capacity):
+        self.memory = deque([], maxlen=capacity)
+
+    def push(self, *args):
+        self.memory.append(Transition(*args))
+
+    def sample(self, bs):
+        return random.sample(self.memory, bs)
+
+    def __len__(self):
+        return len(self.memory)
+    
+    def add_trajectory(self, trajectory):
+        '''
+        Read in a whole trajectory into replay memory AFTER we compute the gain at each step
+        '''
+        for t in trajectory:
+            s,a,s_n,r,lp,g = t
+            self.push(s, a, s_n, r, lp, g)
+
+
+
+def reward(state: torch.tensor, collided: bool=False) -> float:
     r = 0
+    dist_to_goal = torch.norm(state - goal).item()
     if state.dist(goal) <= epsilon:
         r+=1
     
@@ -93,7 +113,7 @@ def rollout(policy: Policy, max_len = 200):
         traj.append([s_t, a_t, s_t1, r_t, logprob_a_t])
 
         # Determine if this upcoming state is a terminal state
-        if s_t1.dist(goal) < epsilon: 
+        if torch.norm(s_t - goal).item() < epsilon: 
             terminal_s = True
 
         # reset current state
@@ -102,9 +122,9 @@ def rollout(policy: Policy, max_len = 200):
     return traj
 
 if __name__ == '__main__':
-    pi = Policy(12)
+    pi = Policy(12).float()
 
-    state = State(0,0,0,0)
+    state = torch.tensor([0.,0.,0.,0.])
 
     mu = pi(state)
     
@@ -119,6 +139,6 @@ if __name__ == '__main__':
     logprobs.backward()
 
     traj = rollout(pi)
-    # print(f'Length of trajectory: {len(traj)}\n first two steps: {traj[:2]}')
+    print(f'Length of trajectory: {len(traj)}\n first two steps: {traj[:2]}')
 
     
