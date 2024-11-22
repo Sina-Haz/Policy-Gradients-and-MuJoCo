@@ -2,7 +2,6 @@ from typing import Any
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torch.nn.functional as F
 import numpy as np
 
 
@@ -16,10 +15,11 @@ class Value(nn.Module):
         super(Value, self).__init__()
         self.layer1 = nn.Linear(input_size, hidden_size)
         self.layer2 = nn.Linear(hidden_size, output_size)
+        self.relu = nn.LeakyReLU()
 
     
     def forward(self, state: torch.Tensor):
-        out1 = F.leaky_relu(self.layer1(state))
+        out1 = self.relu(self.layer1(state))
         v_s = self.layer2(out1)
         return v_s
     

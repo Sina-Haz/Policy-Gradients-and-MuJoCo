@@ -1,18 +1,20 @@
 from utils import *
 from value import *
 from policy import *
-from typing import List
+from torch.utils.data import DataLoader
 import torch.optim as optim
-import torch.nn.functional as F
+import torch.nn as nn
 import mujoco_viewer as mjv
 
 # Global parameters of our vanilla policy gradient (and possibly other algorithms)
-policy_hidden, value_hidden = 10, 10
-num_trajectories = 3
+policy_hidden, value_hidden = 10, 12
+num_trajectories = 1
 replay_capacity = 500
-value_bs, policy_bs = 12, 16
+value_bs, policy_bs = 8, 32
 v_lr = 1e-3
 p_lr = 1e-4
+state_shape = (4, )
+action_shape = (2, )
 
 torch.autograd.set_detect_anomaly(True)
 
@@ -21,15 +23,17 @@ def optimize_value(optimizer, V, states, gains):
     '''
     Train the value based on what it thinks the value of the state is vs. the actual gain (future reward)
     '''
-    # Ensure states and gains are tensors
-    states = torch.stack(states) # stack the states b/c its a tuple of tensors
-    gains = torch.tensor(gains, dtype=torch.float32)
+    # # Ensure states and gains are tensors
+    # states = torch.stack(states) # stack the states b/c its a tuple of tensors
+    # gains = torch.tensor(gains, dtype=torch.float32)
 
     # Predict the values for each state and squeeze them from 2D tensor (batch_size, 1) to -> (batch_size, )
     predicted_values = V(states).squeeze()
 
     # compute huber loss for moderate gradients in case there's a big mismatch b/w predicted and gain
-    loss = F.huber_loss(predicted_values, gains)
+    criterion = nn.HuberLoss()
+    loss = criterion(predicted_values, gains.detach())
+
 
     # Backward pass and update step
     optimizer.zero_grad()
@@ -48,16 +52,16 @@ def optimize_policy(optimizer, V, state, gains, logprobs):
     we would have to use environment transitions to assess reward for these actions and then use bootstrapping to
     estimate Q^pi. Instead here we use gain as Q^pi and subtract it by value of next state to get 
     '''
-    # Firstly we ensure everything is a tensor
-    state = torch.stack(state) # stack the states b/c its a tuple of tensors
-    gains = torch.tensor(gains, dtype=torch.float32)
-    logprobs = torch.stack(logprobs)
+    # # Firstly we ensure everything is a tensor
+    # state = torch.stack(state) # stack the states b/c its a tuple of tensors
+    # gains = torch.tensor(gains, dtype=torch.float32)
+    # logprobs = torch.stack(logprobs)
 
     # Compute the advantage:
-    advantage = gains - V(state).squeeze().clone()
+    advantage = gains - V(state).squeeze()
 
     # Compute policy gradient as the sum of logprobs weighted by advantage
-    pg = (logprobs * advantage.unsqueeze(1)).sum()
+    pg = (logprobs * advantage.unsqueeze(1).detach()).sum()
 
     # negate it so that we do gradient ascent on this gradient instead of descent
     neg_pg = -1 * pg
@@ -71,9 +75,7 @@ def optimize_policy(optimizer, V, state, gains, logprobs):
 
 
 
-
-
-def vanilla_pg(N, decay_variance = False):
+def vanilla_pg(N, decay_variance = False, nvb = 6, npb = 2, actor_fpath = 'actor.pth', critic_fpath = 'critic.pth'):
     # Initialize random policy and value functions
     V = Value(value_hidden)
     
@@ -82,30 +84,48 @@ def vanilla_pg(N, decay_variance = False):
 
     V_optim = optim.Adam(V.parameters(), lr = v_lr)
     pi_optim = optim.Adam(pi.parameters(), lr = p_lr)
-    mem = ReplayMemory(replay_capacity)
+    mem = ReplayMemory(maxlen=replay_capacity)
 
     for i in range(N):
         # Do a few rollouts with the current policy and store it in the memory buffer
-        for j in range(num_trajectories):
+        for _ in range(num_trajectories):
             traj = rollout(pi)
             traj = compute_gain(traj)
             mem.add_trajectory(traj)
         
-        # Get a batch sample of transitions to use for updating our value function
-        val_trans = mem.sample(value_bs)
-        val_batch = Transition(*zip(*val_trans)) # reshapes data as you will see below
-        mvl = optimize_value(V_optim, V, val_batch.state, val_batch.gain)
-        if i % 100 == 0: print('value loss:', mvl)
+        vloader, ploader = DataLoader(mem, batch_size=value_bs, shuffle=True), DataLoader(mem, batch_size=policy_bs, shuffle=True)
+  
+        # Optimize value function using a limited number of batches from DataLoader
+        for batch_idx, batch in enumerate(vloader):
+            if batch_idx >= nvb:
+                break
+            states = batch['state']
+            gains = batch['gains']
+            mvl = optimize_value(V_optim, V, states, gains)
+        
 
-        # Get a batch sample of transitions to use for optimizing policy
-        policy_trans = mem.sample(policy_bs)
-        p_batch = Transition(*zip(*policy_trans))
-        mpg = optimize_policy(pi_optim, V, p_batch.state, p_batch.gain, p_batch.logprob)
-        if i % 100 == 0: print('policy gradient:', mpg)
+        
+        # Use the same limited batches for policy updates
+        for batch_idx, batch in enumerate(ploader):
+            if batch_idx >= npb:
+                break
+            states = batch['state']
+            gains = batch['gains']
+            logprobs = batch['logprobs']
+            mpg = optimize_policy(pi_optim, V, states, gains, logprobs)
 
         if decay_variance: pi.decay_variance()
+        if i % 100 ==0: 
+            print('value loss:', mvl)
+            print('policy gradient:', mpg)
+            torch.save(pi.state_dict(), actor_fpath)
+            torch.save(V.state_dict(), critic_fpath)
 
     return pi, V
+
+
+
+
 
 def init_viewer() -> mjv.MujocoViewer:
     # Global viewer for rendering our policy in action
@@ -143,7 +163,7 @@ def visualize_policy(policy: Policy, max_len = 75):
 
     while not terminal_s and steps < max_len:
         # Sample an action
-        action, _ = policy.sample(state).unbind(0)
+        action, _ = policy.sample(state)
         
         # Set mujoco state and control
         t = state.numpy()
@@ -170,21 +190,12 @@ def visualize_policy(policy: Policy, max_len = 75):
     
     viewer.close()
 
-def save_model(model, fpath):
-    torch.save(model.state_dict(), fpath)
-
-def load_model(model, fpath):
-    model.load_state_dict(torch.load(fpath))
-    model.eval()
 
 
-
-
-pi, _ = vanilla_pg(N = 10000)
+pi, _ = vanilla_pg(N = 1000)
 
 visualize_policy(pi)
 
-save_model(pi, 'pi_N=10k.pth')
 
 
 

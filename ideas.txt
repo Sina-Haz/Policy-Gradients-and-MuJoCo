@@ -5,3 +5,5 @@ Some hyper params to play with:
  - collision penalty (part of the reward function)
  - maybe train value function for a few iterations before training value + policy 
  - max Horizon per trajectory
+
+Could try to use a fixed policy using heuristic and see if value function trains

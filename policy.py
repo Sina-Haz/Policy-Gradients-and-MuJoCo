@@ -1,10 +1,10 @@
 from typing import Any
 from utils import *
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.distributions as dist
 from collections import deque, namedtuple
 import random
+from torch.utils.data import Dataset
 
 
 class Policy(nn.Module):
@@ -18,11 +18,12 @@ class Policy(nn.Module):
         self.layer2 = nn.Linear(hidden_size, output_size)
         self.var = var
         self.gamma = var_decay
+        self.relu = nn.LeakyReLU()
+        self.tanh = nn.Tanh()
     
     def forward(self, state: torch.tensor):
-
-        out1 = F.leaky_relu(self.layer1(state))
-        out2 = F.tanh(self.layer2(out1))
+        out1 = self.relu(self.layer1(state))
+        out2 = self.tanh(self.layer2(out1))
         return out2
     
     def decay_variance(self):
@@ -40,38 +41,139 @@ class Policy(nn.Module):
         mu = self.forward(state)
         distr = dist.Normal(mu, self.var)
 
-        action = torch.clip(distr.sample(), -1, 1).clone()
+        # action = torch.clip(distr.sample(), -1, 1).clone()
+        action = distr.sample()
         # print(f'action: {action}, {action.shape}') DEBUG PRINT
 
         logprobs = distr.log_prob(action)
         # print(logprobs) DEBUG PRINT
 
-        return torch.stack((action, logprobs))
+        return action, logprobs
 
 
-Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward', 'logprob', 'gain'))
+# Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward', 'logprob', 'gain'))
 
-class ReplayMemory(object):
-    def __init__(self, capacity):
-        self.memory = deque([], maxlen=capacity)
+# class ReplayMemory(Dataset):
+#     def __init__(self, state=None, actions=None, rewards=None, next_states=None, gains=None, logprobs=None, maxlen=500):
+#         self.states = state
+#         self.actions = actions
+#         self.rewards = rewards
+#         self.next_states = next_states
+#         self.gains = gains
+#         self.logprobs = logprobs
+#         self.maxlen = maxlen
 
-    def push(self, *args):
-        self.memory.append(Transition(*args))
+#     def __len__(self):
+#         return len(self.states)
+    
+#     def __getitem__(self, idx):
+#         return {
+#             'state': self.states[idx],
+#             'action': self.actions[idx],
+#             'reward': self.rewards[idx],
+#             'next_state': self.next_states[idx],
+#             'gains': self.gains,
+#             'logprobs': self.logprobs
+#         }
+    
+#     def push(self, s, a, r, ns, lp, g):
+#         self.states = torch.cat([self.states, s],dim=0)
+#         self.actions = torch.cat([self.actions, a],dim=0)
+#         self.rewards = torch.cat([self.rewards, r],dim=0)
+#         self.next_states = torch.cat([self.next_states, ns],dim=0)
+#         self.logprobs = torch.cat([self.logprobs, lp], dim=0)
+#         self.gains = torch.cat([self.gains, g],dim=0)
 
-    def sample(self, bs):
-        return random.sample(self.memory, bs)
+        
+#     def _truncate(self):
+#         """Keeps only the most recent `maxlen` elements."""
+#         if len(self.states) > self.maxlen:
+#             excess = len(self.states) - self.maxlen
+#             self.states = self.states[excess:]
+#             self.actions = self.actions[excess:]
+#             self.rewards = self.rewards[excess:]
+#             self.next_states = self.next_states[excess:]
+#             self.gains = self.gains[excess:]
+#             self.logprobs = self.logprobs[excess:]
+    
+#     def add_trajectory(self, trajectory):
+#         '''
+#         Read in a whole trajectory into replay memory AFTER we compute the gain at each step
+#         '''
+#         for t in trajectory:
+#             s,a,s_n,r,lp,g = t
+#             self.push(s, a, s_n, r, lp, g)
+#         self._truncate()
+
+
+class ReplayMemory(Dataset):
+    def __init__(self, maxlen=500):
+        self.maxlen = maxlen
+        self.current_size = 0
+        self.position = 0
+        
+        # Defer tensor creation until we see the first sample
+        self.states = None
+        self.actions = None
+        self.rewards = None
+        self.next_states = None
+        self.gains = None
+        self.logprobs = None
+        
+        self.initialized = False
+
+    def _initialize_buffers(self, s, a, r, ns, lp, g):
+        """Initialize buffers with correct shapes based on first sample"""
+        # Get shapes from first sample
+        state_shape = s.shape
+        action_shape = a.shape
+        next_state_shape = ns.shape
+        logprob_shape = lp.shape
+        
+        # Pre-allocate tensors with the maximum size
+        self.states = torch.zeros((self.maxlen,) + tuple(state_shape[1:]), dtype=torch.float32)
+        self.actions = torch.zeros((self.maxlen,) + tuple(action_shape[1:]), dtype=torch.float32)
+        self.rewards = torch.zeros((self.maxlen,), dtype=torch.float32)
+        self.next_states = torch.zeros((self.maxlen,) + tuple(next_state_shape[1:]), dtype=torch.float32)
+        self.logprobs = torch.zeros((self.maxlen,) + tuple(logprob_shape[1:]), dtype=torch.float32)
+        self.gains = torch.zeros((self.maxlen,), dtype=torch.float32)
+        
+        self.initialized = True
 
     def __len__(self):
-        return len(self.memory)
-    
-    def add_trajectory(self, trajectory):
-        '''
-        Read in a whole trajectory into replay memory AFTER we compute the gain at each step
-        '''
-        for t in trajectory:
-            s,a,s_n,r,lp,g = t
-            self.push(s, a, s_n, r, lp, g)
+        return self.current_size
 
+    def __getitem__(self, idx):
+        return {
+            'state': self.states[idx],
+            'action': self.actions[idx],
+            'reward': self.rewards[idx],
+            'next_state': self.next_states[idx],
+            'gains': self.gains[idx],
+            'logprobs': self.logprobs[idx]
+        }
+
+    def push(self, s, a, ns, r, lp, g):
+        # Initialize buffers if this is the first push
+        if not self.initialized:
+            self._initialize_buffers(s, a, r, ns, lp, g)
+        
+        # Store transition in the circular buffer
+        self.states[self.position] = s
+        self.actions[self.position] = a
+        self.rewards[self.position] = r
+        self.next_states[self.position] = ns
+        self.logprobs[self.position] = lp
+        self.gains[self.position] = g
+        
+        # Update position and size
+        self.position = (self.position + 1) % self.maxlen
+        self.current_size = min(self.current_size + 1, self.maxlen)
+
+    def add_trajectory(self, trajectory):
+        for t in trajectory:
+            s, a,ns, r, lp, g = t
+            self.push(s, a, ns, r, lp, g)
 
 
 def reward(state: torch.tensor, collided: bool=False) -> float:
@@ -104,7 +206,7 @@ def rollout(policy: Policy, max_len = 200):
     while len(traj) < max_len and not terminal_s:
         # Collect reward given state and sample an action given state (and log prob)
         r_t = reward(s_t, collided=coll)
-        a_t, logprob_a_t = policy.sample(s_t).unbind(0)
+        a_t, logprob_a_t = policy.sample(s_t)
 
         # transition based on environment, current state and action
         s_t1, coll = transition(s_t, a_t)
