@@ -14,7 +14,7 @@ class Policy(nn.Module):
     '''
     def __init__(self, hidden_size, input_size = 4, output_size = 2, var = 0.1, var_decay = 0.99) -> None:
         super(Policy, self).__init__()
-        self.layer1 = nn.Linear(input_size, hidden_size)
+        self.layer1 = nn.Linear(input_size, hidden_size)    
         self.layer2 = nn.Linear(hidden_size, output_size)
         self.var = var
         self.gamma = var_decay
@@ -36,7 +36,7 @@ class Policy(nn.Module):
         Does this by computing a predicted mean mu for each action DoF and samples
         From a gaussian using the mean and it's own set variance
 
-        returns tensor of shape (2, action.shape[0]): first row is the action at each DoF, 2nd row is the log prob of those actions
+        returns action and logprobs of that action
         '''
         mu = self.forward(state)
         distr = dist.Normal(mu, self.var)
@@ -51,94 +51,19 @@ class Policy(nn.Module):
         return action, logprobs
 
 
-# Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward', 'logprob', 'gain'))
-
-# class ReplayMemory(Dataset):
-#     def __init__(self, state=None, actions=None, rewards=None, next_states=None, gains=None, logprobs=None, maxlen=500):
-#         self.states = state
-#         self.actions = actions
-#         self.rewards = rewards
-#         self.next_states = next_states
-#         self.gains = gains
-#         self.logprobs = logprobs
-#         self.maxlen = maxlen
-
-#     def __len__(self):
-#         return len(self.states)
-    
-#     def __getitem__(self, idx):
-#         return {
-#             'state': self.states[idx],
-#             'action': self.actions[idx],
-#             'reward': self.rewards[idx],
-#             'next_state': self.next_states[idx],
-#             'gains': self.gains,
-#             'logprobs': self.logprobs
-#         }
-    
-#     def push(self, s, a, r, ns, lp, g):
-#         self.states = torch.cat([self.states, s],dim=0)
-#         self.actions = torch.cat([self.actions, a],dim=0)
-#         self.rewards = torch.cat([self.rewards, r],dim=0)
-#         self.next_states = torch.cat([self.next_states, ns],dim=0)
-#         self.logprobs = torch.cat([self.logprobs, lp], dim=0)
-#         self.gains = torch.cat([self.gains, g],dim=0)
-
-        
-#     def _truncate(self):
-#         """Keeps only the most recent `maxlen` elements."""
-#         if len(self.states) > self.maxlen:
-#             excess = len(self.states) - self.maxlen
-#             self.states = self.states[excess:]
-#             self.actions = self.actions[excess:]
-#             self.rewards = self.rewards[excess:]
-#             self.next_states = self.next_states[excess:]
-#             self.gains = self.gains[excess:]
-#             self.logprobs = self.logprobs[excess:]
-    
-#     def add_trajectory(self, trajectory):
-#         '''
-#         Read in a whole trajectory into replay memory AFTER we compute the gain at each step
-#         '''
-#         for t in trajectory:
-#             s,a,s_n,r,lp,g = t
-#             self.push(s, a, s_n, r, lp, g)
-#         self._truncate()
-
-
 class ReplayMemory(Dataset):
-    def __init__(self, maxlen=500):
+    def __init__(self, maxlen=500, s_shape=4, a_shape=2, dtype=torch.float32):
         self.maxlen = maxlen
         self.current_size = 0
         self.position = 0
         
         # Defer tensor creation until we see the first sample
-        self.states = None
-        self.actions = None
-        self.rewards = None
-        self.next_states = None
-        self.gains = None
-        self.logprobs = None
-        
-        self.initialized = False
-
-    def _initialize_buffers(self, s, a, r, ns, lp, g):
-        """Initialize buffers with correct shapes based on first sample"""
-        # Get shapes from first sample
-        state_shape = s.shape
-        action_shape = a.shape
-        next_state_shape = ns.shape
-        logprob_shape = lp.shape
-        
-        # Pre-allocate tensors with the maximum size
-        self.states = torch.zeros((self.maxlen,) + tuple(state_shape[1:]), dtype=torch.float32)
-        self.actions = torch.zeros((self.maxlen,) + tuple(action_shape[1:]), dtype=torch.float32)
-        self.rewards = torch.zeros((self.maxlen,), dtype=torch.float32)
-        self.next_states = torch.zeros((self.maxlen,) + tuple(next_state_shape[1:]), dtype=torch.float32)
-        self.logprobs = torch.zeros((self.maxlen,) + tuple(logprob_shape[1:]), dtype=torch.float32)
-        self.gains = torch.zeros((self.maxlen,), dtype=torch.float32)
-        
-        self.initialized = True
+        self.states = torch.zeros(size=(maxlen, s_shape), dtype=dtype)
+        self.actions = torch.zeros(size=(maxlen, a_shape), dtype=dtype)
+        self.rewards = torch.zeros(size = (maxlen, ), dtype=dtype)
+        self.next_states = torch.zeros(size=(maxlen, s_shape), dtype=dtype)
+        self.gains = torch.zeros(size = (maxlen, ), dtype=dtype)
+        self.logprobs = torch.zeros(size=(maxlen, a_shape), dtype=dtype)
 
     def __len__(self):
         return self.current_size
@@ -154,9 +79,6 @@ class ReplayMemory(Dataset):
         }
 
     def push(self, s, a, ns, r, lp, g):
-        # Initialize buffers if this is the first push
-        if not self.initialized:
-            self._initialize_buffers(s, a, r, ns, lp, g)
         
         # Store transition in the circular buffer
         self.states[self.position] = s
@@ -179,7 +101,7 @@ class ReplayMemory(Dataset):
 def reward(state: torch.tensor, collided: bool=False) -> float:
     r = 0
     dist_to_goal = torch.norm(state - goal).item()
-    if state.dist(goal) <= epsilon:
+    if dist_to_goal <= epsilon:
         r+=1
     
     if collided:

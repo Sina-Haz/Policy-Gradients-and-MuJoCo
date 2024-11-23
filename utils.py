@@ -8,26 +8,6 @@ import numpy as np
 np.set_printoptions(precision=3)
 torch.set_printoptions(precision=3)
 
-# @dataclass
-# class State:
-#     x:float
-#     y:float
-#     xdot:float
-#     ydot:float
-
-#     def to_tensor(self) -> torch.Tensor:
-#         return torch.Tensor([self.x, self.y, self.xdot, self.ydot])
-    
-#     def dist(self, other: 'State') -> float:
-#         s1, s2 = self.to_tensor(), other.to_tensor()
-#         return torch.linalg.norm(s1 - s2)
-    
-#     @classmethod
-#     def from_tensor(cls, data: torch.Tensor) -> 'State':
-#         return cls(data[0].item(), data[1].item(), data[2].item(), data[3].item())
-    
-#     def __repr__(self, prec = 3) -> str:
-#         return f"State(x={self.x:.{prec}f}, y={self.y:.{prec}f}, xdot={self.xdot:.{prec}f}, ydot={self.ydot:.{prec}f})"
 
 # Global Parameters
 gamma = 0.99
