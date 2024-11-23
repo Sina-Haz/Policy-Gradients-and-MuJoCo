@@ -10,11 +10,11 @@ torch.set_printoptions(precision=3)
 
 
 # Global Parameters
-gamma = 0.99
+gamma = 0.97
 model = mujoco.MjModel.from_xml_path('nav.xml')
 data = mujoco.MjData(model)
 dt = 0.1
-epsilon = 0.1
+epsilon = 0.15
 goal = torch.Tensor([0.9, 0, 0, 0])
 collision_penalty = 1e-3 # add a small collision penalty so it learns that its a bad behavior
 sample_bounds = torch.Tensor([[-.2, 1.1], [-.36, .36]])

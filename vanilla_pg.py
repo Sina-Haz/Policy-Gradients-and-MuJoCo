@@ -9,7 +9,7 @@ import mujoco_viewer as mjv
 import matplotlib.pyplot as plt
 
 # Global parameters of our vanilla policy gradient (and possibly other algorithms)
-policy_hidden, value_hidden = 10, 12
+policy_hidden, value_hidden = 12, 12
 num_trajectories = 1
 replay_capacity = 500
 value_bs, policy_bs = 8, 32
@@ -18,7 +18,7 @@ p_lr = 1e-4
 state_shape = (4, )
 action_shape = (2, )
 
-torch.autograd.set_detect_anomaly(True)
+# torch.autograd.set_detect_anomaly(True)
 
 
 def optimize_value(optimizer, V, states, gains):
@@ -126,7 +126,7 @@ def vanilla_pg(N, decay_variance = False, nvb = 6, npb = 2, actor_fpath = 'actor
                 break
             states = batch['state']
             gains = batch['gains']
-            mvl = optimize_value(V_optim, V, states, gains)
+            V_loss = optimize_value(V_optim, V, states, gains)
         
 
         # PROBLEM HAPPENING HERE:
@@ -137,13 +137,12 @@ def vanilla_pg(N, decay_variance = False, nvb = 6, npb = 2, actor_fpath = 'actor
             states = batch['state']
             gains = batch['gains']
             logprobs = batch['logprobs']
-            mpg = optimize_policy(pi_optim, V, states, gains, logprobs)
-            # vl, pl = optimize_actor_critic(pi_optim, V_optim, V, states, gains.unsqueeze(1), logprobs)
+            pi_loss = optimize_policy(pi_optim, V, states, gains, logprobs)
 
         if decay_variance: pi.decay_variance()
         if i % 100 ==0: 
-            # print('value loss:', vl)
-            # print('policy gradient:', pl)
+            print('value loss:', V_loss)
+            print('policy gradient:', pi_loss)
             torch.save(pi.state_dict(), actor_fpath)
             torch.save(V.state_dict(), critic_fpath)
 
@@ -151,7 +150,13 @@ def vanilla_pg(N, decay_variance = False, nvb = 6, npb = 2, actor_fpath = 'actor
 
 
 def policy_gradient_td(V, pi, episodes, max_steps = 200, actor_fpath = 'actor.pth', critic_fpath = 'critic.pth'):
+    '''
+    Unlike the above function vanilla policy gradient which uses a monte-carlo method to estimate the advantage and
+    to update the value function. This function is completely online and uses SGD (instead of offline and BGD) to
+    update the actor and critic.
 
+    Returns some statistics on the actor loss, critic loss, and returns
+    '''
     optimizer_actor = optim.AdamW(pi.parameters(), lr=p_lr)
     optimizer_critic = optim.AdamW(V.parameters(), lr=v_lr)
     stats = {'Actor Loss': [], 'Critic Loss': [], 'Returns': []}
@@ -166,15 +171,15 @@ def policy_gradient_td(V, pi, episodes, max_steps = 200, actor_fpath = 'actor.pt
 
         while not done and step_count < max_steps:
             # Given current state compute current reward, action, next state, and terminal condition
-            r = reward(state, collided)
             action, logprobs = pi.sample(state)
             next_state, collided = transition(state, action)
+            r_next = reward(next_state, collided) # Should I do r_t+1 or r_t?
             done = (torch.norm(state - goal).item() < epsilon)
 
             # Compute the TD target (bootstrapping)
             value = V(state)
             next_value = V(next_state)
-            td_target = r + gamma * next_value * (1 - done)
+            td_target = r_next + gamma * next_value * (1 - done)
 
             # Based on td_target (basically q-value) and current estimated value, we estimate advantage
             advantage = td_target - value
@@ -194,7 +199,7 @@ def policy_gradient_td(V, pi, episodes, max_steps = 200, actor_fpath = 'actor.pt
             # Update state, return, and step count
             state = next_state
             step_count +=1
-            ep_return += r
+            ep_return += r_next
 
         # Record statistics
         stats['Actor Loss'].append(actor_loss.item())
@@ -202,14 +207,11 @@ def policy_gradient_td(V, pi, episodes, max_steps = 200, actor_fpath = 'actor.pt
         stats['Returns'].append(ep_return)
 
         # Print episode statistics
-        print(f"Episode {episode}: Actor Loss: {actor_loss.item():.4f}, Critic Loss: {critic_loss.item():.4f}, Return: {ep_return}, Steps: {step_count}")
+        if episode % 100 == 0: print(f"Episode {episode}: Actor Loss: {actor_loss.item():.4f}, Critic Loss: {critic_loss.item():.4f}, Return: {ep_return}, Steps: {step_count}")
 
     torch.save(pi.state_dict(), actor_fpath)
     torch.save(V.state_dict(), critic_fpath)
     return stats
-
-
-
 
 
 
@@ -277,10 +279,61 @@ def visualize_policy(policy: Policy, max_len = 75):
     viewer.close()
 
 
+def eval_policy(pi, trials = 100, maxsteps = 100):
+    '''
+    Evaluates policy pi by doing trials number of rollouts each with maxsteps number of possible steps per rollout.
+
+    We return the success rate, average reward per step, and average reward per episode
+    '''
+    successes = 0
+    sum_reward = 0
+    total_steps = 0
+
+    for _ in range(trials):
+        state = sample_non_colliding(sampler_fn=sample_state, collision_checker=is_colliding, sample_bounds=sample_bounds)
+        done = False
+        collided = False
+        steps = 0
+
+        while not done and steps < maxsteps:
+            action, _ = pi.sample(state)
+            next_state, collided = transition(state, action)
+            r_next = reward(next_state, collided) # Should I do r_t+1 or r_t?
+            done = (torch.norm(state - goal).item() < epsilon)
+
+            # Update state, return, and step count
+            state = next_state
+            steps +=1
+            sum_reward += r_next
+
+            if r_next >= 1 - collision_penalty: successes += 1
+        
+        total_steps += steps
+    
+    success_rate = float(successes) / trials
+    avg_reward_per_step = sum_reward / total_steps
+    avg_reward_per_episode = sum_reward / trials
+
+    return success_rate, avg_reward_per_step, avg_reward_per_episode
+
+
+
+
+
+
+
+
 
 V, pi = Value(value_hidden), Policy(policy_hidden)
-stats = policy_gradient_td(V, pi, 5000)
+V.load_state_dict(torch.load('models/critic.pth'))
+pi.load_state_dict(torch.load('models/actor.pth'))
+V.eval()
+pi.eval()
+stats = policy_gradient_td(V, pi, 5000, actor_fpath='models/actor.pth', critic_fpath='models/critic.pth')
 visualize_policy(pi)
+success_rate, avg_reward_per_step, avg_reward_per_episode = eval_policy(pi)
+print(f'Success rate: {success_rate}, average reward per step: {avg_reward_per_step}, avg reward per episode {avg_reward_per_episode}')
+
 
         
 
