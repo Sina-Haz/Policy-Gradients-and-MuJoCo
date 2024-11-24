@@ -14,11 +14,25 @@ num_trajectories = 1
 replay_capacity = 500
 value_bs, policy_bs = 8, 32
 v_lr = 1e-3
-p_lr = 1e-4
+p_lr = 1e-3
 state_shape = (4, )
 action_shape = (2, )
 
-# torch.autograd.set_detect_anomaly(True)
+torch.autograd.set_detect_anomaly(True)
+
+
+def step_env(state, pi):
+    '''
+    Given a state step the environment by one timestep and return:
+    current state, action, next_state, next_reward, logprob
+    '''
+    action, logprobs = pi.sample(state)
+    next_state, collided = transition(state, action)
+    next_reward = reward(state, collided)
+
+    return state, action, next_state, next_reward, logprobs
+
+
 
 
 def optimize_value(optimizer, V, states, gains):
@@ -99,7 +113,7 @@ def optimize_policy(optimizer, V, state, gains, logprobs):
 #     return critic_loss, actor_loss
 
 
-def vanilla_pg(N, decay_variance = False, nvb = 6, npb = 2, actor_fpath = 'actor.pth', critic_fpath = 'critic.pth'):
+def vanilla_pg(N, decay_variance = False, nvb = 6, npb = 2, actor_fpath = 'td_models/actor.pth', critic_fpath = 'td_models/critic.pth'):
     # Initialize random policy and value functions
     V = Value(value_hidden)
     
@@ -117,7 +131,7 @@ def vanilla_pg(N, decay_variance = False, nvb = 6, npb = 2, actor_fpath = 'actor
             traj = compute_gain(traj)
             mem.add_trajectory(traj)
         
-        vloader, ploader = DataLoader(mem, batch_size=value_bs, shuffle=True), DataLoader(mem, batch_size=policy_bs, shuffle=True)
+        # vloader, ploader = DataLoader(mem, batch_size=value_bs, shuffle=True), DataLoader(mem, batch_size=policy_bs, shuffle=True)
         # loader = DataLoader(mem, batch_size=value_bs, shuffle=True)
   
         # Optimize value function using a limited number of batches from DataLoader
@@ -148,8 +162,85 @@ def vanilla_pg(N, decay_variance = False, nvb = 6, npb = 2, actor_fpath = 'actor
 
     return pi, V
 
+def policy_gradient_mc(V, pi, episodes, max_steps=200, actor_fpath='actor_mc.pth', critic_fpath='critic_mc.pth', decay=False):
+    """
+    Trains an actor and critic using the A2C algorithm with Monte Carlo estimation for advantage.
+    Advantage = (future discounted reward - value).
+    """
+    optimizer_actor = optim.AdamW(pi.parameters(), lr=p_lr)
+    optimizer_critic = optim.AdamW(V.parameters(), lr=v_lr)
 
-def policy_gradient_td(V, pi, episodes, max_steps = 200, actor_fpath = 'actor.pth', critic_fpath = 'critic.pth'):
+    for episode in range(1, episodes + 1):
+        # Sample initial state and initialize episode return
+        state = sample_non_colliding(sampler_fn=sample_state, collision_checker=is_colliding, sample_bounds=sample_bounds)
+        ep_return = 0
+        done = False
+        step_count = 0
+        collided = False
+
+        # Stores rewards and states for Monte Carlo return calculation
+        episode_rewards = []
+        episode_states = []
+        episode_logprobs = []
+
+        while not done and step_count < max_steps:
+            # Given current state compute current reward, action, next state, and terminal condition
+            state, action, next_state, next_reward, logprob = step_env(state, pi)
+
+            # Record state, reward, and logprobs for MC estimation
+            episode_states.append(state)
+            episode_rewards.append(next_reward)
+            episode_logprobs.append(logprob)
+
+            # Update state, step count, and episode return
+            state = next_state
+            step_count += 1
+
+        # Calculate future discounted rewards for the episode
+        returns = deque()
+        future_reward = 0
+        for r in reversed(episode_rewards):
+            future_reward = r + gamma * future_reward
+            returns.appendleft(future_reward)
+        returns = torch.tensor(returns)
+
+        # Update actor and critic
+        for t in range(len(episode_states)):
+            state = episode_states[t]
+            G_t = returns[t]
+            value = V(state)
+
+            # Compute advantage using Monte Carlo method
+            advantage = G_t - value
+
+            # Update critic using Huber loss
+            critic_loss = F.smooth_l1_loss(value, G_t.detach())
+            optimizer_critic.zero_grad()
+            critic_loss.backward()
+            optimizer_critic.step()
+
+            # Update actor
+            logprobs = episode_logprobs[t]
+            actor_loss = (-logprobs * advantage.detach()).sum()
+            optimizer_actor.zero_grad()
+            actor_loss.backward()
+            optimizer_actor.step()
+
+        # Print episode statistics
+        if episode % 100 == 0:
+            success_rate, avg_reward_per_step, avg_reward_per_episode = eval_policy(pi, trials=50)
+            print(f'Episode: {episode}, Success rate: {success_rate}, '
+                  f'average reward per step: {avg_reward_per_step}, avg reward per episode {avg_reward_per_episode}')
+            if decay:
+                pi.decay_variance()
+
+    # Save models
+    torch.save(pi.state_dict(), actor_fpath)
+    torch.save(V.state_dict(), critic_fpath)
+
+
+
+def policy_gradient_td(V, pi, episodes, max_steps = 200, actor_fpath = 'actor.pth', critic_fpath = 'critic.pth', decay = False):
     '''
     Unlike the above function vanilla policy gradient which uses a monte-carlo method to estimate the advantage and
     to update the value function. This function is completely online and uses SGD (instead of offline and BGD) to
@@ -159,7 +250,6 @@ def policy_gradient_td(V, pi, episodes, max_steps = 200, actor_fpath = 'actor.pt
     '''
     optimizer_actor = optim.AdamW(pi.parameters(), lr=p_lr)
     optimizer_critic = optim.AdamW(V.parameters(), lr=v_lr)
-    stats = {'Actor Loss': [], 'Critic Loss': [], 'Returns': []}
 
     for episode in range(1, episodes+1):
         # Sample initial state and initialize episode return
@@ -201,17 +291,15 @@ def policy_gradient_td(V, pi, episodes, max_steps = 200, actor_fpath = 'actor.pt
             step_count +=1
             ep_return += r_next
 
-        # Record statistics
-        stats['Actor Loss'].append(actor_loss.item())
-        stats['Critic Loss'].append(critic_loss.item())
-        stats['Returns'].append(ep_return)
-
         # Print episode statistics
-        if episode % 100 == 0: print(f"Episode {episode}: Actor Loss: {actor_loss.item():.4f}, Critic Loss: {critic_loss.item():.4f}, Return: {ep_return}, Steps: {step_count}")
+        if episode % 100 == 0:
+            success_rate, avg_reward_per_step, avg_reward_per_episode = eval_policy(pi, trials=50)
+            print(f'Episode: {episode}, Success rate: {success_rate}, average reward per step: {avg_reward_per_step}, avg reward per episode {avg_reward_per_episode}')
+            # print(f"Episode {episode}: Actor Loss: {actor_loss.item():.4f}, Critic Loss: {critic_loss.item():.4f}, Return: {ep_return}, Steps: {step_count}")
+            if decay: pi.decay_variance()
 
     torch.save(pi.state_dict(), actor_fpath)
     torch.save(V.state_dict(), critic_fpath)
-    return stats
 
 
 
@@ -323,17 +411,16 @@ def eval_policy(pi, trials = 100, maxsteps = 100):
 
 
 
-
-V, pi = Value(value_hidden), Policy(policy_hidden)
-V.load_state_dict(torch.load('models/critic.pth'))
-pi.load_state_dict(torch.load('models/actor.pth'))
-V.eval()
-pi.eval()
-stats = policy_gradient_td(V, pi, 5000, actor_fpath='models/actor.pth', critic_fpath='models/critic.pth')
-visualize_policy(pi)
-success_rate, avg_reward_per_step, avg_reward_per_episode = eval_policy(pi)
-print(f'Success rate: {success_rate}, average reward per step: {avg_reward_per_step}, avg reward per episode {avg_reward_per_episode}')
-
+if __name__ == '__main__':
+    V, pi = Value(value_hidden), Policy(policy_hidden, var=0.1, var_decay=.975)
+    # V.load_state_dict(torch.load('models/critic.pth'))
+    # pi.load_state_dict(torch.load('models/actor.pth'))
+    # V.eval()
+    # pi.eval()
+    # stats = policy_gradient_td(V, pi, 5000, actor_fpath='models/actor_dv.pth', critic_fpath='models/critic_dv.pth', max_steps=100, decay=True)
+    # visualize_policy(pi)
+    # success_rate, avg_reward_per_step, avg_reward_per_episode = eval_policy(pi)
+    # print(f'Success rate: {success_rate}, average reward per step: {avg_reward_per_step}, avg reward per episode {avg_reward_per_episode}')
 
         
 
