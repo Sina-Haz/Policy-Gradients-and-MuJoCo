@@ -29,6 +29,7 @@ class Value(nn.Module):
 def compute_gain(traj, gamma = 0.99):
     '''
     Compute gain and add it in place as the last element to each element in trajectories
+    returns overwritten trajectory
     '''
 
     rewards = [x[3] for x in traj]

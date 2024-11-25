@@ -1,10 +1,8 @@
-from typing import Any
 from utils import *
 import torch.nn as nn
 import torch.distributions as dist
-from collections import deque, namedtuple
-import random
 from torch.utils.data import Dataset
+from typing import Tuple
 
 
 class Policy(nn.Module):
@@ -12,25 +10,27 @@ class Policy(nn.Module):
     Learns a parametrized actor network that takes in state (x_t, y_t, xdot_t, ydot_t) and returns mu_x, mu_y
     means of 2 gaussian's. We sample these gaussians to obtain action a_t = (u_x, u_y)
     '''
-    def __init__(self, hidden_size, input_size = 4, output_size = 2, var = 0.1, var_decay = 0.99) -> None:
+    def __init__(self, hidden_size, input_size = 4, output_size = 2, var = 0.1, var_decay = 0.99, scale = 0.5) -> None:
         super(Policy, self).__init__()
         self.layer1 = nn.Linear(input_size, hidden_size)    
         self.layer2 = nn.Linear(hidden_size, output_size)
-        self.var = var
+        self.var = var * scale
         self.gamma = var_decay
         self.relu = nn.LeakyReLU()
         self.tanh = nn.Tanh()
+        self.scale = scale
     
     def forward(self, state: torch.tensor):
         out1 = self.relu(self.layer1(state))
         out2 = self.tanh(self.layer2(out1))
-        return out2
+        return out2 * self.scale
+
     
     def decay_variance(self):
         self.var *= self.gamma
     
     
-    def sample(self, state: torch.tensor) -> torch.Tensor:
+    def sample(self, state: torch.tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         '''
         This method sample's an action given a state.
         Does this by computing a predicted mean mu for each action DoF and samples
@@ -49,6 +49,20 @@ class Policy(nn.Module):
         # print(logprobs) DEBUG PRINT
 
         return action, logprobs
+    
+    def select_action(self, state: torch.tensor) -> torch.tensor:
+        mu = self.forward(state)
+        distr = dist.Normal(mu, self.var)
+        return distr.sample()
+    
+    def get_logprob(self, state, action) -> torch.tensor:
+        # Get the distribution for the action we do:
+        mu = self.forward(state)
+        distr = dist.Normal(mu, self.var)
+
+        # Compute the logprob based on distribution and action we sampled from it:
+        return distr.log_prob(action)
+
 
 
 class ReplayMemory(Dataset):
@@ -63,7 +77,8 @@ class ReplayMemory(Dataset):
         self.rewards = torch.zeros(size = (maxlen, ), dtype=dtype)
         self.next_states = torch.zeros(size=(maxlen, s_shape), dtype=dtype)
         self.gains = torch.zeros(size = (maxlen, ), dtype=dtype)
-        self.logprobs = torch.zeros(size=(maxlen, a_shape), dtype=dtype)
+        # Store logprobs as a list to preserve computational graph
+        # self.logprobs = [torch.zeros(size = (a_shape,), dtype=dtype)] * maxlen
 
     def __len__(self):
         return self.current_size
@@ -74,19 +89,21 @@ class ReplayMemory(Dataset):
             'action': self.actions[idx],
             'reward': self.rewards[idx],
             'next_state': self.next_states[idx],
-            'gains': self.gains[idx],
-            'logprobs': self.logprobs[idx]
+            'gains': self.gains[idx]
+            # 'logprobs': self.logprobs[idx]
         }
 
-    def push(self, s, a, ns, r, lp, g):
-        
+    def push(self, s, a, ns, r, g):
         # Store transition in the circular buffer
-        self.states[self.position] = s
-        self.actions[self.position] = a
-        self.rewards[self.position] = r
-        self.next_states[self.position] = ns
-        self.logprobs[self.position] = lp
-        self.gains[self.position] = g
+        with torch.no_grad():
+            self.states[self.position] = s
+            self.actions[self.position] = a
+            self.rewards[self.position] = r
+            self.next_states[self.position] = ns
+            self.gains[self.position] = g
+        
+        # Store logprobs directly without detaching to preserve computational graph
+        # self.logprobs[self.position] = lp
         
         # Update position and size
         self.position = (self.position + 1) % self.maxlen
@@ -94,20 +111,10 @@ class ReplayMemory(Dataset):
 
     def add_trajectory(self, trajectory):
         for t in trajectory:
-            s, a,ns, r, lp, g = t
-            self.push(s, a, ns, r, lp, g)
+            s, a,ns, r, g = t
+            self.push(s, a, ns, r, g)
 
 
-def reward(state: torch.tensor, collided: bool=False) -> float:
-    r = 0
-    dist_to_goal = torch.norm(state - goal).item()
-    if dist_to_goal <= epsilon:
-        r+=1
-    
-    if collided:
-        r-= collision_penalty
-
-    return r
 
 def rollout(policy: Policy, max_len = 200):
     '''
