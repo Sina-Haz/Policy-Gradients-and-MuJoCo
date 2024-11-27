@@ -18,6 +18,9 @@ p_lr = 1e-3
 state_shape = (4, )
 action_shape = (2, )
 
+small_hidden = 6
+large_hidden = 16
+
 # torch.autograd.set_detect_anomaly(True)
 
 
@@ -314,6 +317,82 @@ def a2c_td_dv(V, pi, episodes,
         
 
 
+def ppo(V, pi, episodes, 
+        max_steps = 100, actor_fpath = 'actor.pth', critic_fpath = 'critic.pth', decay = False,
+        dense=False, lamda = 0, epsilon = 0.2, n_epochs = 10, p_lr = 3e-4, v_lr = 1e-3, bs = 64, clip_grad = False):
+    '''
+    In this function we use monte-carlo advantage estimation for more stable/accurate learning. We also use batch gradient descent
+    '''
+    optimizer_actor = optim.AdamW(pi.parameters(), lr=p_lr)
+    optimizer_critic = optim.AdamW(V.parameters(), lr=v_lr)
+    mem = ReplayMemory(maxlen=3*max_steps, store_logprobs=True)
+    stats = {'success_rate':[], 'average reward per step':[], 'average reward per episode': []}
+
+    for e in range(episodes):
+        state = sample_non_colliding(sample_state, is_colliding, sample_bounds)
+        traj = []
+        done = False
+        steps = 0
+
+        while not done and steps < max_steps:
+            # Sample an action and step the environment
+            action, logprob = pi.sample(state)
+            next_state, reward, done = step_env(state, action, dense=dense)
+
+            # Apped this transition to our trajectory
+            traj.append([state, action, next_state, reward, logprob])
+            steps += 1
+
+        # Compute the gain at all steps and add this to our replay buffer
+        traj = compute_gain(traj)
+        mem.add_trajectory(traj)
+
+        # Train our policy
+        data = DataLoader(mem, batch_size=bs, shuffle=True)
+        
+        for _ in range(n_epochs):
+            for batch in data:
+                gains = batch['gains'].unsqueeze(1)
+                states = batch['state']
+                actions = batch['action']
+                rewards = batch['reward']
+                next_state = batch['next_state']
+                old_logprobs = batch['logprobs']
+
+                # Compute new logprobs
+                logprobs = pi.get_logprob(states, actions)
+
+                values = V(states)
+                critic_loss = F.mse_loss(values, gains)
+                optimizer_critic.zero_grad()
+                critic_loss.backward()
+                optimizer_critic.step()
+
+                with torch.no_grad():
+                    advantage = (1 - lamda) * (gains - values) + lamda * (rewards[:, None] + gamma * V(next_state) - V(state))
+                    # Normalize advantage for better stability
+                    advantage = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
+                
+                # Compute importance sampling ratio and clip it
+                ratio = torch.exp(logprobs - old_logprobs.detach())
+                clipped_ratio = torch.clamp(ratio, 1 - epsilon, 1 + epsilon)
+                actor_loss = -torch.min(ratio * advantage, clipped_ratio * advantage).mean()
+                optimizer_actor.zero_grad()
+                actor_loss.backward()
+
+                # Optionally we clip actor gradients directly to ensure small updates to our policy
+                torch.nn.utils.clip_grad_norm_(pi.parameters(), max_norm=1)
+                optimizer_actor.step()
+        
+        if e % 50 == 0:
+            success_rate, avg_reward_per_step, avg_reward_per_episode = evaluate_policy(pi, trials=50, maxsteps=max_steps)
+            print(f'Episode: {e}, Success rate: {success_rate:.2f}, average reward per step: {avg_reward_per_step:.3f}, avg reward per episode {avg_reward_per_episode:.3f}')
+            stats['success_rate'].append(success_rate); stats['average reward per step'].append(avg_reward_per_step); stats['average reward per episode'].append(avg_reward_per_episode)
+            if decay: pi.decay_variance()
+        
+    plot_training_stats(stats)
+    torch.save(pi.state_dict(), actor_fpath)
+    torch.save(V.state_dict(), critic_fpath)
 
 
 
@@ -322,17 +401,17 @@ def a2c_td_dv(V, pi, episodes,
 if __name__ == '__main__':
 
     # Code to run td a2c algorithm
-    V, pi = Value(value_hidden), Policy(policy_hidden, var=0.1, var_decay=.99, scale=0.25)
-    # # V.load_state_dict(torch.load('models/critic.pth'))
-    # # pi.load_state_dict(torch.load('models/actor.pth'))
-    # # V.eval()
-    # # pi.eval()
-    a2c_mc(V, pi, episodes = 5000, actor_fpath='td_models/actor_dense_lamda.pth', critic_fpath='td_models/critic_dense_lamda.pth', max_steps=75, lamda=0.2, dense=True)
-    visualize_policy(pi)
+    # V, pi = Value(value_hidden), Policy(policy_hidden, var=0.1, var_decay=.99, scale=0.25)
+    # V.load_state_dict(torch.load('models/critic.pth'))
+    # pi.load_state_dict(torch.load('models/actor.pth'))
+    # V.eval()
+    # pi.eval()
+    # a2c_mc(V, pi, episodes = 5000, actor_fpath='td_models/actor_dense_lamda.pth', critic_fpath='td_models/critic_dense_lamda.pth', max_steps=75, lamda=0.2, dense=True)
+    # visualize_policy(pi)
 
     # Reinforce algorithm
     # pi = Policy(policy_hidden)
-    # reinforce(pi, episodes=1000, max_steps=75)
+    # reinforce(pi, episodes=10, max_steps=75)
 
     # # Code to run td a2c double variance algorithm
     # V, pi = Value(value_hidden), Policy(policy_hidden, scale=0.1)
@@ -341,6 +420,16 @@ if __name__ == '__main__':
     # # Save the functions
     # torch.save(pi.state_dict(), 'td_models/actor_dv_dense.pth')
     # torch.save(V.state_dict(), 'td_models/critic_dv_dense.pth')
+
+    # Code to run PPO
+    V, pi = Value(large_hidden), Policy(large_hidden, var=0.5, var_decay=.975, scale=0.25)
+    # V.load_state_dict(torch.load('mc_models/critic_dense_ppo_0.1.pth', weights_only=True))
+    # pi.load_state_dict(torch.load('mc_models/actor_dense_ppo_0.1.pth', weights_only=True))
+    # V.eval()
+    # pi.eval()
+    actor_file, critic_file = 'mc_models/actor_ppo_0.1.pth', 'mc_models/critic_ppo_0.1.pth'
+    ppo(V, pi, episodes = 20000, actor_fpath=actor_file, critic_fpath=critic_file, max_steps=100, dense=False, epsilon = 0.1, n_epochs=10, bs = 32, clip_grad=True, lamda=0.5)
+    visualize_policy(pi, 500)
 
 
 

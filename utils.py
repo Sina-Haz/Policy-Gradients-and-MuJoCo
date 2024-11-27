@@ -11,14 +11,16 @@ torch.set_printoptions(precision=3)
 
 
 # Global Parameters
-gamma = 0.99
+gamma = 0.975
 model = mujoco.MjModel.from_xml_path('nav.xml')
 data = mujoco.MjData(model)
 dt = 0.1
-epsilon = 0.15
+epsilon = 0.2
 goal = torch.Tensor([0.9, 0, 0, 0])
 collision_penalty = 1e-3 # add a small collision penalty so it learns that its a bad behavior
 sample_bounds = torch.Tensor([[-.2, 1.1], [-.36, .36]])
+
+model.opt.timestep*=2 # For faster simulation
 
 
 def sample_state(bounds: torch.Tensor) -> torch.tensor:
@@ -170,7 +172,7 @@ def visualize_policy(policy: Policy, max_len = 75):
     viewer.close()
 
 
-def evaluate_policy(pi, trials = 100, maxsteps = 100):
+def evaluate_policy(pi, trials = 100, maxsteps = 100, epsilon=0.15):
     '''
     Evaluates policy pi by doing trials number of rollouts each with maxsteps number of possible steps per rollout.
 
@@ -198,7 +200,9 @@ def evaluate_policy(pi, trials = 100, maxsteps = 100):
                 steps +=1
                 sum_reward += r_next
 
-                if r_next >= 1 - collision_penalty: successes += 1
+                if r_next >= 1 - collision_penalty: 
+                    successes += 1
+                    done = True
             
             total_steps += steps
     

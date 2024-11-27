@@ -14,7 +14,7 @@ class Policy(nn.Module):
         super(Policy, self).__init__()
         self.layer1 = nn.Linear(input_size, hidden_size)    
         self.layer2 = nn.Linear(hidden_size, output_size)
-        self.var = var * scale
+        self.var = var 
         self.gamma = var_decay
         self.relu = nn.LeakyReLU()
         self.tanh = nn.Tanh()
@@ -39,7 +39,7 @@ class Policy(nn.Module):
         returns action and logprobs of that action
         '''
         mu = self.forward(state)
-        distr = dist.Normal(mu, self.var)
+        distr = dist.Normal(mu, self.var*(self.scale**2))
 
         # action = torch.clip(distr.sample(), -1, 1).clone()
         action = distr.sample()
@@ -52,7 +52,7 @@ class Policy(nn.Module):
     
     def select_action(self, state: torch.tensor) -> torch.tensor:
         mu = self.forward(state)
-        distr = dist.Normal(mu, self.var)
+        distr = dist.Normal(mu, self.var*(self.scale**2))
         return distr.sample()
     
     def get_logprob(self, state, action) -> torch.tensor:
@@ -65,8 +65,9 @@ class Policy(nn.Module):
 
 
 
+
 class ReplayMemory(Dataset):
-    def __init__(self, maxlen=500, s_shape=4, a_shape=2, dtype=torch.float32):
+    def __init__(self, maxlen=500, s_shape=4, a_shape=2, dtype=torch.float32, store_logprobs = False):
         self.maxlen = maxlen
         self.current_size = 0
         self.position = 0
@@ -78,32 +79,38 @@ class ReplayMemory(Dataset):
         self.next_states = torch.zeros(size=(maxlen, s_shape), dtype=dtype)
         self.gains = torch.zeros(size = (maxlen, ), dtype=dtype)
         # Store logprobs as a list to preserve computational graph
-        # self.logprobs = [torch.zeros(size = (a_shape,), dtype=dtype)] * maxlen
+        if store_logprobs:
+            with torch.no_grad():
+                self.logprobs = torch.zeros(size=(maxlen, a_shape), dtype=dtype)
+        else:
+            self.logprobs = None
 
     def __len__(self):
         return self.current_size
 
     def __getitem__(self, idx):
-        return {
+        data =  {
             'state': self.states[idx],
             'action': self.actions[idx],
             'reward': self.rewards[idx],
             'next_state': self.next_states[idx],
-            'gains': self.gains[idx]
-            # 'logprobs': self.logprobs[idx]
+            'gains': self.gains[idx],
         }
+        if self.logprobs is not None:
+            data['logprobs'] = self.logprobs[idx]
+        
+        return data
 
-    def push(self, s, a, ns, r, g):
+    def push(self, s, a, ns, r, lp = None, gains=0):
         # Store transition in the circular buffer
         with torch.no_grad():
             self.states[self.position] = s
             self.actions[self.position] = a
             self.rewards[self.position] = r
             self.next_states[self.position] = ns
-            self.gains[self.position] = g
-        
-        # Store logprobs directly without detaching to preserve computational graph
-        # self.logprobs[self.position] = lp
+            self.gains[self.position] = gains
+            if self.logprobs is not None:
+                self.logprobs[self.position] = lp
         
         # Update position and size
         self.position = (self.position + 1) % self.maxlen
@@ -111,8 +118,11 @@ class ReplayMemory(Dataset):
 
     def add_trajectory(self, trajectory):
         for t in trajectory:
-            s, a,ns, r, g = t
-            self.push(s, a, ns, r, g)
+            if self.logprobs is None:
+                s, a ,ns, r, g = t
+                self.push(s, a, ns, r, gains=g)
+            else:
+                self.push(*t)
 
 
 
