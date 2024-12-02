@@ -1,0 +1,64 @@
+4.567863846707374
+11.080405192264227
+15.221141287907866
+19.013857303608724
+22.715173825429176
+26.1391805238654
+31.084477251628407
+34.08283159722579
+36.96989212594986
+39.688250067405285
+42.42209935766357
+45.981371504857776
+48.2947842945367
+50.414821160675615
+52.67888568985976
+54.75628203869157
+56.64119477835048
+58.4128051251523
+63.55480859028241
+64.93973979629571
+67.89415421394152
+69.31562967455665
+70.40482309356133
+71.46861179430726
+72.58460526982441
+74.05325748265172
+75.0056348795631
+76.07177038018013
+76.82297395066618
+77.8226631709489
+78.51744041565088
+79.34634408206746
+80.18637157025148
+82.250736629241
+82.79195806555524
+83.36414143583944
+/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py:142: UserWarning: std(): degrees of freedom is <= 0. Correction should be strictly less than the reduction factor (input numel divided by output numel). (Triggered internally at /Users/runner/work/pytorch/pytorch/pytorch/aten/src/ATen/native/ReduceOps.cpp:1823.)
+  gains = (gains - gains.mean()) / (gains.std() + eps)
+NaNs in gains!
+84.19593436404746
+Traceback (most recent call last):
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 210, in <module>
+    train(num_episodes=wandb.config.episodes)
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 172, in train
+    action = model.act(state)
+             ^^^^^^^^^^^^^^^^
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 99, in act
+    norm_distr, val = self(state)
+                      ^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 90, in forward
+    distr = Normal(mean, std)
+            ^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/torch/distributions/normal.py", line 59, in __init__
+    super().__init__(batch_shape, validate_args=validate_args)
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/torch/distributions/distribution.py", line 71, in __init__
+    raise ValueError(
+ValueError: Expected parameter loc (Tensor of shape (2,)) of distribution Normal(loc: torch.Size([2]), scale: torch.Size([2])) to satisfy the constraint Real(), but found invalid values:
+tensor([nan, nan], grad_fn=<SliceBackward0>)

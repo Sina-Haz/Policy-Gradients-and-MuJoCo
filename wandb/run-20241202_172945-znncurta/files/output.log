@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 207, in <module>
+    train(num_episodes=wandb.config.episodes)
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 170, in train
+    state, reward, done, _ = env.step(action)
+                             ^^^^^^^^^^^^^^^^
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 49, in step
+    next_state, reward, done = step(self.state, action, reward_fn=self.reward)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 22, in step
+    next_reward = reward_fn(next_state, collided)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: 'str' object is not callable

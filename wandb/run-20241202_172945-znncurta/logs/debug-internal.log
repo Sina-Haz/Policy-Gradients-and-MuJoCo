@@ -1,0 +1,16 @@
+{"time":"2024-12-02T17:29:45.149473-05:00","level":"INFO","msg":"using version","core version":"0.18.7"}
+{"time":"2024-12-02T17:29:45.149549-05:00","level":"INFO","msg":"created symlink","path":"/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/wandb/run-20241202_172945-znncurta/logs/debug-core.log"}
+{"time":"2024-12-02T17:29:45.365743-05:00","level":"INFO","msg":"created new stream","id":"znncurta"}
+{"time":"2024-12-02T17:29:45.365817-05:00","level":"INFO","msg":"stream: started","id":"znncurta"}
+{"time":"2024-12-02T17:29:45.365958-05:00","level":"INFO","msg":"sender: started","stream_id":"znncurta"}
+{"time":"2024-12-02T17:29:45.366014-05:00","level":"INFO","msg":"writer: Do: started","stream_id":"znncurta"}
+{"time":"2024-12-02T17:29:45.366017-05:00","level":"INFO","msg":"handler: started","stream_id":"znncurta"}
+{"time":"2024-12-02T17:29:45.727028-05:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2024-12-02T17:29:46.611791-05:00","level":"INFO","msg":"stream: closing","id":"znncurta"}
+{"time":"2024-12-02T17:29:46.611823-05:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2024-12-02T17:29:46.612078-05:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2024-12-02T17:29:48.112542-05:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2024-12-02T17:29:48.341814-05:00","level":"INFO","msg":"handler: closed","stream_id":"znncurta"}
+{"time":"2024-12-02T17:29:48.34185-05:00","level":"INFO","msg":"sender: closed","stream_id":"znncurta"}
+{"time":"2024-12-02T17:29:48.341834-05:00","level":"INFO","msg":"writer: Close: closed","stream_id":"znncurta"}
+{"time":"2024-12-02T17:29:48.34233-05:00","level":"INFO","msg":"stream: closed","id":"znncurta"}

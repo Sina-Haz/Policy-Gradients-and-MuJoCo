@@ -1,0 +1,17 @@
+{
+  "os":  "macOS-14.3-arm64-arm-64bit",
+  "python":  "3.11.6",
+  "startedAt":  "2024-12-02T22:35:29.954728Z",
+  "program":  "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py",
+  "codePath":  "testbed.py",
+  "git":  {
+    "remote":  "https://github.com/Sina-Haz/Policy-Gradients-and-MuJoCo.git",
+    "commit":  "dcded673e35685a7a69446655b1603bcc638971d"
+  },
+  "email":  "shazeghian@gmail.com",
+  "root":  "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic",
+  "host":  "Sinas-MacBook-Pro.local",
+  "username":  "shazeghi",
+  "executable":  "/usr/local/bin/python3",
+  "codePathLocal":  "testbed.py"
+}

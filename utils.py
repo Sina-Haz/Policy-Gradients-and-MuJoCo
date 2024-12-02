@@ -11,16 +11,15 @@ torch.set_printoptions(precision=3)
 
 
 # Global Parameters
-gamma = 0.975
+gamma = 0.99
 model = mujoco.MjModel.from_xml_path('nav.xml')
 data = mujoco.MjData(model)
 dt = 0.1
 epsilon = 0.2
-goal = torch.Tensor([0.9, 0, 0, 0])
+goal = np.array([0.9, 0, 0, 0])
 collision_penalty = 1e-3 # add a small collision penalty so it learns that its a bad behavior
 sample_bounds = torch.Tensor([[-.2, 1.1], [-.36, .36]])
 
-model.opt.timestep*=2 # For faster simulation
 
 
 def sample_state(bounds: torch.Tensor) -> torch.tensor:
@@ -72,11 +71,13 @@ def is_colliding(state: torch.tensor) -> bool:
     return data.ncon == 0
 
 
-def transition(state: torch.Tensor, action: torch.Tensor) -> Tuple[torch.Tensor, bool]:
+def transition(state: np.ndarray, action: np.ndarray, noise = 0.01) -> Tuple[torch.Tensor, bool]:
+    '''
+    Ensure state and action are numpy arrays!
+    '''
     global model, data
-    # Set mujoco state and control
-    t = state.numpy()
-    q, qdot = t[:2], t[2:]
+
+    q, qdot = state[:2], state[2:]
     data.qpos[:] = q.copy()
     data.qvel[:] = qdot.copy()
     mujoco.mj_forward(model, data)  # Ensure the state is initialized correctly
@@ -89,7 +90,8 @@ def transition(state: torch.Tensor, action: torch.Tensor) -> Tuple[torch.Tensor,
 
     # print(f"Before q={data.qpos}, qdot={data.qvel}, ctrl={data.ctrl}") DEBUG 
     # Define noisy control clipped w/in limits:
-    ctrl = np.clip(action.detach().numpy().copy() + np.random.normal([0, 0], [0.1, 0.1]), -1, 1)
+    noise = np.random.normal([0,0], [noise, noise])
+    ctrl = action + noise
 
     for _ in range(num_steps):
         data.ctrl[:] = ctrl
@@ -215,6 +217,8 @@ def evaluate_policy(pi, trials = 100, maxsteps = 100, epsilon=0.15):
 
 def reward(state: torch.tensor, collided: bool=False) -> float:
     r = 0
+    if isinstance(state, np.ndarray):
+        state = torch.tensor(state)
     dist_to_goal = torch.norm(state - goal).item()
     if dist_to_goal <= epsilon:
         r+=1
@@ -232,14 +236,14 @@ def dense_reward(state, collided, scale = 0.1, collision_penalty = 0) -> float:
     Assigns infinite sum reward upon getting within epsilon of goal
     '''
     r = 0
-    dist_to_goal = torch.norm(state - goal).item()
+    dist_to_goal = np.linalg.norm(state - goal).item()
 
     # Reward for being within epsilon of the goal
     if dist_to_goal <= epsilon:
-        r += 1 / (1 - gamma)  # Infinite sum reward
+        r += (1 / (1 - gamma))  # Infinite sum reward
     else:
         # Dense reward based on distance to goal
-        r -= (dist_to_goal*scale)
+        r += 1 / (1 + (dist_to_goal*scale))
 
     # Penalty for collisions
     if collided:

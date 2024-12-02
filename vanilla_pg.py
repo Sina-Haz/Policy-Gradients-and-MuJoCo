@@ -34,7 +34,7 @@ def step_env(state, action, dense=False):
     if dense: next_reward = dense_reward(state, collided)
     else: next_reward = reward(state, collided)
 
-    done = (torch.norm(next_state - goal) < epsilon).item()
+    done = bool((torch.norm(next_state - goal) < epsilon).item())
 
     return next_state, next_reward, done
 
@@ -189,7 +189,6 @@ def a2c_mc(V, pi, episodes, max_steps = 100, actor_fpath = 'actor.pth', critic_f
 
 
 
-
 def reinforce(pi, episodes, max_steps = 100, actor_fpath = 'actor.pth', critic_fpath = 'critic.pth', decay = False):
     '''
     In this function instead of using advantage estimation and training online we implement policy gradients using
@@ -341,6 +340,7 @@ def ppo(V, pi, episodes,
 
             # Apped this transition to our trajectory
             traj.append([state, action, next_state, reward, logprob])
+            state = next_state
             steps += 1
 
         # Compute the gain at all steps and add this to our replay buffer
@@ -381,7 +381,7 @@ def ppo(V, pi, episodes,
                 actor_loss.backward()
 
                 # Optionally we clip actor gradients directly to ensure small updates to our policy
-                torch.nn.utils.clip_grad_norm_(pi.parameters(), max_norm=1)
+                if clip_grad: torch.nn.utils.clip_grad_norm_(pi.parameters(), max_norm=1)
                 optimizer_actor.step()
         
         if e % 50 == 0:
@@ -423,12 +423,10 @@ if __name__ == '__main__':
 
     # Code to run PPO
     V, pi = Value(large_hidden), Policy(large_hidden, var=0.5, var_decay=.975, scale=0.25)
-    # V.load_state_dict(torch.load('mc_models/critic_dense_ppo_0.1.pth', weights_only=True))
-    # pi.load_state_dict(torch.load('mc_models/actor_dense_ppo_0.1.pth', weights_only=True))
-    # V.eval()
-    # pi.eval()
-    actor_file, critic_file = 'mc_models/actor_ppo_0.1.pth', 'mc_models/critic_ppo_0.1.pth'
-    ppo(V, pi, episodes = 20000, actor_fpath=actor_file, critic_fpath=critic_file, max_steps=100, dense=False, epsilon = 0.1, n_epochs=10, bs = 32, clip_grad=True, lamda=0.5)
+
+    actor_file, critic_file = 'mc_models/actor_nonlinear_dense_reward.pth', 'mc_models/critic_nonlinear_dense_reward.pth'
+
+    ppo(V, pi, episodes = 2000, actor_fpath=actor_file, critic_fpath=critic_file, max_steps=100, dense=True, epsilon = 0.1, n_epochs=3, bs = 16, lamda=0.5)
     visualize_policy(pi, 500)
 
 

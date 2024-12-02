@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 207, in <module>
+    train(num_episodes=wandb.config.episodes)
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 170, in train
+    state, reward, done, _ = env.step(action)
+    ^^^^^^^^^^^^^^^^^^^^^^
+ValueError: too many values to unpack (expected 4)

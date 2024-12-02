@@ -1,0 +1,105 @@
+Code for an actor that supports both continuous and discrete actions:
+
+moves = torch.tensor([[0, 0], [.25, 0], [0, .25], [-.25, 0], [0, -.25]], dtype=torch.float)
+
+class Actor(nn.Module):
+    def __init__(self, hidden_dims, input_dim = 4, output_dim = len(moves), normal = False, act_fn = nn.ReLU()) -> None:
+        super(Actor, self).__init__()
+
+        layers = []
+
+        prev_dim = input_dim
+
+        for dim in hidden_dims:
+            layers.append(nn.Linear(prev_dim, dim))
+            layers.append(act_fn)
+            prev_dim = dim
+        
+        if normal:
+            action_dim = moves.size(1)
+            layers.append(nn.Linear(prev_dim, action_dim * 2)) # Output mean and log variance
+        
+        else:
+            layers.append(nn.Linear(prev_dim, output_dim))
+            layers.append(nn.Softmax())
+
+        self.normal = normal
+
+        self.network = nn.Sequential(*layers)
+        self.saved_actions = []
+        self.saved_rewards = []
+
+
+    def forward(self, state):
+        out = self.network(state)
+        if self.normal:
+            # Splits output into 2 equal sized chunks along LAST dimension (dim=-1)
+            # This is important b/c means it will remain compatible with large batches
+            mean, log_var = torch.chunk(out, 2, dim=-1)
+            var = torch.exp(log_var)
+            return mean, var
+
+        else:
+            return out # return probs for categorical
+            
+    
+    def act(self, state):
+        '''
+        Return an action and the logprob of that action
+        Action will be of size (2, ), logprob will be of size (1, )
+        '''
+        if not self.normal:
+            distr = Categorical(probs = self.forward(state))
+            action_idx = distr.sample()
+            logprob = distr.log_prob(action_idx)
+            action = moves[action_idx]
+            return action, logprob
+        
+        else:
+            mu, var = self.forward(state)
+            std = torch.sqrt(var)
+            distr = Normal(mu, std)
+            action = distr.sample()
+            logprob = distr.log_prob(action).sum(dim=-1) # Sum along action dimension, assume each action dim is independent
+            return action, logprob
+        
+    
+    def get_logprob(self, state, action):
+        '''
+        returns scalar logprob
+        '''
+        if not self.normal:
+            distr = Categorical(probs = self.forward(state))
+            # Expand moves to match the batch size of action
+            # moves: (5, 2) -> (1, 5, 2)
+            # action: (32, 2) -> (32, 1, 2)
+            # Broadcast to (32, 5, 2) and compare along the last dimension
+            action_bools = (moves.unsqueeze(0) == action.unsqueeze(1)).all(dim=-1)
+
+            # Now we have a boolean tensor of shape (batch size, 5)
+            # Find indices where it's True for each batch element
+            action_idx = action_bools.nonzero(as_tuple=True)[1]  # Get index of move in each batch
+            return distr.log_prob(action_idx)
+        else:
+            mu, var = self.forward(state)
+            std = torch.sqrt(var)
+            distr = Normal(mu, std)
+            return distr.log_prob(action).sum(dim=-1)
+
+
+    def get_entropy(self, state):
+        '''
+        Get entropy of action distribution
+        '''
+        if not self.normal:
+            probs = self.forward(state)
+            distr = Categorical(probs)
+            entropy = distr.entropy()
+        
+        else:
+            mu, var = self.forward(state)
+            std = torch.sqrt(var)
+            distr = Normal(mu, std)
+            entropy = distr.entropy().sum(dim=-1) # Sum entropy over dimensions for normal
+        return entropy
+    

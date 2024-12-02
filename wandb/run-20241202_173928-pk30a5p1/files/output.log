@@ -1,0 +1,38 @@
+/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py:146: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  value_losses.append(F.smooth_l1_loss(val, torch.tensor(g)))
+/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py:146: UserWarning: Using a target size (torch.Size([])) that is different to the input size (torch.Size([1])). This will likely lead to incorrect results due to broadcasting. Please ensure they have the same size.
+  value_losses.append(F.smooth_l1_loss(val, torch.tensor(g)))
+4.549166108135863
+9.171783236409233
+13.525210540266862
+17.44655316487617
+21.16714595949271
+24.909513372977663
+28.488774655778634
+/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py:141: UserWarning: std(): degrees of freedom is <= 0. Correction should be strictly less than the reduction factor (input numel divided by output numel). (Triggered internally at /Users/runner/work/pytorch/pytorch/pytorch/aten/src/ATen/native/ReduceOps.cpp:1823.)
+  gains = (gains - gains.mean()) / (gains.std() + eps)
+32.0643359229897
+Traceback (most recent call last):
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 207, in <module>
+    train(num_episodes=wandb.config.episodes)
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 169, in train
+    action = model.act(state)
+             ^^^^^^^^^^^^^^^^
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 98, in act
+    norm_distr, val = self(state)
+                      ^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 89, in forward
+    distr = Normal(mean, std)
+            ^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/torch/distributions/normal.py", line 59, in __init__
+    super().__init__(batch_shape, validate_args=validate_args)
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/torch/distributions/distribution.py", line 71, in __init__
+    raise ValueError(
+ValueError: Expected parameter loc (Tensor of shape (2,)) of distribution Normal(loc: torch.Size([2]), scale: torch.Size([2])) to satisfy the constraint Real(), but found invalid values:
+tensor([nan, nan], grad_fn=<SliceBackward0>)

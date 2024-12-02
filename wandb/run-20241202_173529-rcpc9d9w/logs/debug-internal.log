@@ -1,0 +1,16 @@
+{"time":"2024-12-02T17:35:29.963103-05:00","level":"INFO","msg":"using version","core version":"0.18.7"}
+{"time":"2024-12-02T17:35:29.963229-05:00","level":"INFO","msg":"created symlink","path":"/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/wandb/run-20241202_173529-rcpc9d9w/logs/debug-core.log"}
+{"time":"2024-12-02T17:35:30.079617-05:00","level":"INFO","msg":"created new stream","id":"rcpc9d9w"}
+{"time":"2024-12-02T17:35:30.0799-05:00","level":"INFO","msg":"stream: started","id":"rcpc9d9w"}
+{"time":"2024-12-02T17:35:30.080097-05:00","level":"INFO","msg":"handler: started","stream_id":"rcpc9d9w"}
+{"time":"2024-12-02T17:35:30.080122-05:00","level":"INFO","msg":"sender: started","stream_id":"rcpc9d9w"}
+{"time":"2024-12-02T17:35:30.080206-05:00","level":"INFO","msg":"writer: Do: started","stream_id":"rcpc9d9w"}
+{"time":"2024-12-02T17:35:30.38286-05:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2024-12-02T17:35:31.050086-05:00","level":"INFO","msg":"stream: closing","id":"rcpc9d9w"}
+{"time":"2024-12-02T17:35:31.050235-05:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2024-12-02T17:35:31.050668-05:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2024-12-02T17:35:32.503088-05:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2024-12-02T17:35:33.025448-05:00","level":"INFO","msg":"handler: closed","stream_id":"rcpc9d9w"}
+{"time":"2024-12-02T17:35:33.025485-05:00","level":"INFO","msg":"sender: closed","stream_id":"rcpc9d9w"}
+{"time":"2024-12-02T17:35:33.025473-05:00","level":"INFO","msg":"writer: Close: closed","stream_id":"rcpc9d9w"}
+{"time":"2024-12-02T17:35:33.02583-05:00","level":"INFO","msg":"stream: closed","id":"rcpc9d9w"}

@@ -7,3 +7,9 @@ Some hyper params to play with:
  - max Horizon per trajectory
 
 Could try to use a fixed policy using heuristic and see if value function trains
+
+
+1. Add obstacle position (relative or absolute) to observations
+2. Make sparse reward higher (Combine)
+3. Play around with nonlinear dense reward
+4. Wandb to track training (loss, reward, etc.)
