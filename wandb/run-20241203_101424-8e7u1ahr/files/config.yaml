@@ -1,0 +1,43 @@
+_wandb:
+    value:
+        cli_version: 0.18.7
+        m: []
+        python_version: 3.11.6
+        t:
+            "1":
+                - 1
+                - 55
+                - 105
+            "2":
+                - 1
+                - 55
+                - 105
+            "3":
+                - 2
+                - 16
+                - 23
+                - 55
+            "4": 3.11.6
+            "5": 0.18.7
+            "8":
+                - 5
+            "12": 0.18.7
+            "13": darwin-arm64
+description:
+    value: Trying expanded observation with relative goal and obstacle distance. Also scaling down actions thru tanh and scale. Changing done to pos. only.
+env:
+    value: CustomEnv2
+episodes:
+    value: 1000
+gamma:
+    value: 0.95
+hidden_dim:
+    value: 256
+learning_rate:
+    value: 1e-05
+maxsteps:
+    value: 200
+reward_fn:
+    value: Sparse, Rewards are normalized
+seed:
+    value: 543

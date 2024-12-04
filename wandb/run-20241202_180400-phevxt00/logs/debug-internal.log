@@ -1,0 +1,16 @@
+{"time":"2024-12-02T18:04:00.213768-05:00","level":"INFO","msg":"using version","core version":"0.18.7"}
+{"time":"2024-12-02T18:04:00.213899-05:00","level":"INFO","msg":"created symlink","path":"/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/wandb/run-20241202_180400-phevxt00/logs/debug-core.log"}
+{"time":"2024-12-02T18:04:00.327057-05:00","level":"INFO","msg":"created new stream","id":"phevxt00"}
+{"time":"2024-12-02T18:04:00.327242-05:00","level":"INFO","msg":"stream: started","id":"phevxt00"}
+{"time":"2024-12-02T18:04:00.32742-05:00","level":"INFO","msg":"handler: started","stream_id":"phevxt00"}
+{"time":"2024-12-02T18:04:00.327435-05:00","level":"INFO","msg":"writer: Do: started","stream_id":"phevxt00"}
+{"time":"2024-12-02T18:04:00.327433-05:00","level":"INFO","msg":"sender: started","stream_id":"phevxt00"}
+{"time":"2024-12-02T18:04:00.496427-05:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2024-12-02T18:04:19.757165-05:00","level":"INFO","msg":"stream: closing","id":"phevxt00"}
+{"time":"2024-12-02T18:04:19.757394-05:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2024-12-02T18:04:19.757822-05:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2024-12-02T18:04:20.303555-05:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2024-12-02T18:04:20.413033-05:00","level":"INFO","msg":"handler: closed","stream_id":"phevxt00"}
+{"time":"2024-12-02T18:04:20.413122-05:00","level":"INFO","msg":"sender: closed","stream_id":"phevxt00"}
+{"time":"2024-12-02T18:04:20.413099-05:00","level":"INFO","msg":"writer: Close: closed","stream_id":"phevxt00"}
+{"time":"2024-12-02T18:04:20.413421-05:00","level":"INFO","msg":"stream: closed","id":"phevxt00"}

@@ -1,0 +1,24 @@
+{"time":"2024-12-03T10:25:18.686908-05:00","level":"INFO","msg":"using version","core version":"0.18.7"}
+{"time":"2024-12-03T10:25:18.687005-05:00","level":"INFO","msg":"created symlink","path":"/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/wandb/run-20241203_102518-yluy3xgn/logs/debug-core.log"}
+{"time":"2024-12-03T10:25:18.80195-05:00","level":"INFO","msg":"created new stream","id":"yluy3xgn"}
+{"time":"2024-12-03T10:25:18.80226-05:00","level":"INFO","msg":"stream: started","id":"yluy3xgn"}
+{"time":"2024-12-03T10:25:18.802595-05:00","level":"INFO","msg":"handler: started","stream_id":"yluy3xgn"}
+{"time":"2024-12-03T10:25:18.802648-05:00","level":"INFO","msg":"writer: Do: started","stream_id":"yluy3xgn"}
+{"time":"2024-12-03T10:25:18.802646-05:00","level":"INFO","msg":"sender: started","stream_id":"yluy3xgn"}
+{"time":"2024-12-03T10:25:18.963728-05:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2024-12-03T10:27:34.600119-05:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/shazeghi-rutgers-university/rl-agent/yluy3xgn/file_stream\": read tcp 10.74.140.197:57897->35.186.228.49:443: read: connection reset by peer"}
+{"time":"2024-12-03T10:29:19.620348-05:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/shazeghi-rutgers-university/rl-agent/yluy3xgn/file_stream\": read tcp 10.74.140.197:57913->35.186.228.49:443: read: connection reset by peer"}
+{"time":"2024-12-03T10:29:49.503601-05:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/shazeghi-rutgers-university/rl-agent/yluy3xgn/file_stream\": read tcp 10.74.140.197:57916->35.186.228.49:443: read: connection reset by peer"}
+{"time":"2024-12-03T10:30:49.598907-05:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/shazeghi-rutgers-university/rl-agent/yluy3xgn/file_stream\": read tcp 10.74.140.197:57922->35.186.228.49:443: read: connection reset by peer"}
+{"time":"2024-12-03T10:30:51.696744-05:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/shazeghi-rutgers-university/rl-agent/yluy3xgn/file_stream\": read tcp 10.74.140.197:57923->35.186.228.49:443: read: connection reset by peer"}
+{"time":"2024-12-03T10:31:19.4924-05:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/shazeghi-rutgers-university/rl-agent/yluy3xgn/file_stream\": read tcp 10.74.140.197:57929->35.186.228.49:443: read: connection reset by peer"}
+{"time":"2024-12-03T10:31:49.572599-05:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/shazeghi-rutgers-university/rl-agent/yluy3xgn/file_stream\": read tcp 10.74.140.197:57932->35.186.228.49:443: read: connection reset by peer"}
+{"time":"2024-12-03T10:35:09.007118-05:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2024-12-03T10:35:09.007571-05:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2024-12-03T10:35:09.562347-05:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2024-12-03T10:35:09.735716-05:00","level":"INFO","msg":"handler: operation stats","stats":{}}
+{"time":"2024-12-03T10:35:10.759364-05:00","level":"INFO","msg":"stream: closing","id":"yluy3xgn"}
+{"time":"2024-12-03T10:35:10.759445-05:00","level":"INFO","msg":"handler: closed","stream_id":"yluy3xgn"}
+{"time":"2024-12-03T10:35:10.759462-05:00","level":"INFO","msg":"writer: Close: closed","stream_id":"yluy3xgn"}
+{"time":"2024-12-03T10:35:10.759483-05:00","level":"INFO","msg":"sender: closed","stream_id":"yluy3xgn"}
+{"time":"2024-12-03T10:35:10.759832-05:00","level":"INFO","msg":"stream: closed","id":"yluy3xgn"}

@@ -426,7 +426,7 @@ if __name__ == '__main__':
 
     actor_file, critic_file = 'mc_models/actor_nonlinear_dense_reward.pth', 'mc_models/critic_nonlinear_dense_reward.pth'
 
-    ppo(V, pi, episodes = 2000, actor_fpath=actor_file, critic_fpath=critic_file, max_steps=100, dense=True, epsilon = 0.1, n_epochs=3, bs = 16, lamda=0.5)
+    # ppo(V, pi, episodes = 2000, actor_fpath=actor_file, critic_fpath=critic_file, max_steps=100, dense=True, epsilon = 0.1, n_epochs=3, bs = 16, lamda=0.5)
     visualize_policy(pi, 500)
 
 

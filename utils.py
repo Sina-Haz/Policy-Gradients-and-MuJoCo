@@ -17,8 +17,9 @@ data = mujoco.MjData(model)
 dt = 0.1
 epsilon = 0.2
 goal = np.array([0.9, 0, 0, 0])
+goal_pos = np.array([0.9, 0])
 collision_penalty = 1e-3 # add a small collision penalty so it learns that its a bad behavior
-sample_bounds = torch.Tensor([[-.2, 1.1], [-.36, .36]])
+sample_bounds = torch.Tensor([[-.10, 1.0], [-.3, .3]])
 
 
 
@@ -42,7 +43,7 @@ def sample_state(bounds: torch.Tensor) -> torch.tensor:
     return q_qdot
 
 
-def sample_non_colliding(sampler_fn, collision_checker, sample_bounds):
+def sample_non_colliding(sampler_fn, collision_checker, sample_bounds = sample_bounds):
     '''
     A generic function that takes in a sampler and collision checker as function pointers and continues sampling with
     The sampler until it gets to a non-colliding state.
@@ -215,11 +216,12 @@ def evaluate_policy(pi, trials = 100, maxsteps = 100, epsilon=0.15):
     return success_rate, avg_reward_per_step, avg_reward_per_episode
 
 
-def reward(state: torch.tensor, collided: bool=False) -> float:
+def reward(state: torch.tensor, collided: bool=False, pos_only=False) -> float:
     r = 0
-    if isinstance(state, np.ndarray):
-        state = torch.tensor(state)
-    dist_to_goal = torch.norm(state - goal).item()
+
+    if pos_only: dist_to_goal = np.linalg.norm(state[:2] - goal[:2]).item()
+    else: dist_to_goal = np.linalg.norm(state - goal).item()
+
     if dist_to_goal <= epsilon:
         r+=1
     
@@ -228,19 +230,37 @@ def reward(state: torch.tensor, collided: bool=False) -> float:
     return r
 
 
-def dense_reward(state, collided, scale = 0.1, collision_penalty = 0) -> float:
+def sparse_reward(state: torch.tensor, collided: bool=False, pos_only=False) -> float:
+    r = 0
+
+    if pos_only: dist_to_goal = np.linalg.norm(state[:2] - goal[:2]).item()
+    else: dist_to_goal = np.linalg.norm(state - goal).item()
+
+    if dist_to_goal <= epsilon:
+        r+=1
+    
+    if collided:
+        r-= collision_penalty
+    return r
+
+
+def dense_reward(state, collided, scale = 10, collision_penalty = 0.1, pos_only=False) -> float:
     '''
     Gives a negative scaled reward based on distance to goal (i.e. as it gets farther it's a more negative reward).
     Gives a much higher collision penalty than our sparse reward
 
-    Assigns infinite sum reward upon getting within epsilon of goal
+    Assigns infinite sum reward upon getting within epsilon of goal.
+    Making it a position only requirement
     '''
     r = 0
-    dist_to_goal = np.linalg.norm(state - goal).item()
+    if pos_only: dist_to_goal = np.linalg.norm(state[:2] - goal[:2]).item()
+    else: dist_to_goal = np.linalg.norm(state - goal).item()
+
+    max_reward = 5 * (1 / (1 - gamma))
 
     # Reward for being within epsilon of the goal
     if dist_to_goal <= epsilon:
-        r += (1 / (1 - gamma))  # Infinite sum reward
+        r += max_reward  # Infinite sum reward
     else:
         # Dense reward based on distance to goal
         r += 1 / (1 + (dist_to_goal*scale))
@@ -249,7 +269,61 @@ def dense_reward(state, collided, scale = 0.1, collision_penalty = 0) -> float:
     if collided:
         r -= collision_penalty
 
-    return r
+    # Normalize reward
+    norm_r = r / (max_reward + 1e-9)
+
+    return norm_r
+
+
+def new_reward(state, action_magnitude, safe_velocity = 0.5):
+    """
+    Simple but effective reward function focusing on:
+    1. Getting to the goal
+    2. Moving efficiently toward the goal
+    3. Avoiding obstacles
+    
+    All components naturally bounded between -1 and 1
+    """
+    state = state.numpy()
+    q, qdot = state[:2], state[2:]
+    
+    # Distance to goal (bounded between 0 and 1)
+    dist_to_goal = np.linalg.norm(q - goal_pos)
+    r_dist = -np.tanh(dist_to_goal)  # Natural normalization via tanh
+    
+    # Velocity alignment with goal direction (already between -1 and 1)
+    to_goal = goal_pos - q 
+    vel_align = np.dot(to_goal, qdot) / (np.linalg.norm(to_goal) * np.linalg.norm(qdot) + 1e-6)
+
+    # Action magnitude penalty (bounded between -1 and 0)
+    r_action = -np.tanh(action_magnitude)
+
+    # Velocity magnitude penalty (bounded between -1 and 0)
+    vel_magnitude = np.linalg.norm(qdot)
+    r_vel = -np.tanh(max(vel_magnitude - safe_velocity, 0))
+    
+    # Simple obstacle avoidance (bounded via tanh)
+    dist_to_obs = np.linalg.norm(q - np.array([0.5, 0.0]))
+    r_obs = -np.tanh(max(0.3 - dist_to_obs, 0))
+    
+    # Sparse goal reward
+    r_goal = 5.0 if dist_to_goal < epsilon else 0.0
+    
+        # Combine with weights prioritizing goal-directed behavior while penalizing inefficiencies
+    reward = (0.3 * r_dist + 
+             0.2 * vel_align + 
+             0.2 * r_obs + 
+             0.15 * r_action +  # Action penalty
+             0.15 * r_vel +     # Velocity penalty
+             r_goal)
+    
+    return reward
+
+
+
+
+
+
 
 
 

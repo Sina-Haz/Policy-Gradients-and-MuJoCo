@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 235, in <module>
+    model.visualize(env = CustomEnv(reward_fn=dense_reward))
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 114, in visualize
+    env.render()
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 59, in render
+    self.viewer.render()
+  File "/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/mujoco_viewer/mujoco_viewer.py", line 384, in render
+    raise Exception(
+Exception: GLFW window does not exist but you tried to render.

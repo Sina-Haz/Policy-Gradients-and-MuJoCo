@@ -1,0 +1,39 @@
+{
+  "os":  "macOS-14.3-arm64-arm-64bit",
+  "python":  "3.11.6",
+  "startedAt":  "2024-12-03T18:03:04.615085Z",
+  "program":  "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py",
+  "codePath":  "testbed.py",
+  "git":  {
+    "remote":  "https://github.com/Sina-Haz/Policy-Gradients-and-MuJoCo.git",
+    "commit":  "57b08d5f9dcaeb2e3b4da5f8f2bda2a383192738"
+  },
+  "email":  "shazeghian@gmail.com",
+  "root":  "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic",
+  "host":  "Sinas-MBP",
+  "username":  "shazeghi",
+  "executable":  "/usr/local/bin/python3",
+  "codePathLocal":  "testbed.py",
+  "cpu_count":  8,
+  "cpu_count_logical":  8,
+  "disk":  {
+    "/":  {
+      "total":  "994662584320",
+      "used":  "223662964736"
+    }
+  },
+  "memory":  {
+    "total":  "17179869184"
+  },
+  "cpu":  {
+    "count":  8,
+    "countLogical":  8
+  },
+  "apple":  {
+    "name":  "Apple M1",
+    "ecpuCores":  4,
+    "pcpuCores":  4,
+    "gpuCores":  8,
+    "memoryGb":  16
+  }
+}

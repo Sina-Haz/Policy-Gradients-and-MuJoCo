@@ -1,8 +1,8 @@
 from collections import namedtuple
 from torch.distributions import Normal
+import torch.nn as nn
+import torch.optim as optim
 from utils import *
-from value import *
-from vanilla_pg import visualize_policy, plot_training_stats
 import torch.nn.functional as F
 import gymnasium as gym
 from gymnasium import spaces
@@ -12,19 +12,22 @@ import wandb
 # Smallest possible epsilon value for nonzero division
 eps = 1e-10
 
-def step(state, action, reward_fn = reward):
+def step(state, action, reward_fn = reward, position_only = False):
     '''
     Given a state and action pair take a step in the environment and return:
     next state, rewards, termination (i.e if stop condition reached)
     '''
+    state = state # Truncate state dim if it's greater than 4 b/c  
     next_state, collided = transition(state, action)
 
-    next_reward = reward_fn(next_state, collided)
+    next_reward = reward_fn(next_state, action_magnitude=np.linalg.norm(action))
 
-    done = bool((torch.norm(next_state - goal) < epsilon).item())
+    if position_only:
+        done = bool((torch.norm(next_state[:2] - goal[:2]) < epsilon).item())
+    else:
+        done = bool((torch.norm(next_state - goal) < epsilon).item())
 
     return next_state, next_reward, done
-
 
 
 
@@ -61,11 +64,63 @@ class CustomEnv(gym.Env):
             self.viewer.close()
 
 
+class CustomEnv2(gym.Env):
+    '''
+    Same as custom env but now we expand observation space to include position of obstacle and goal
+    '''
+    def __init__(self, reward_fn, pos_only) -> None:
+        super().__init__()
+
+        self.action_space = spaces.Box(low=-1.0, high=1.0, shape = (2,), dtype=np.float32)
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(12,), dtype=np.float32)
+        self.viewer = init_viewer()
+        self.render_mode = 'human'
+        self.reward = reward_fn
+
+        self.goal = goal
+        self.obs = np.array([0.5, 0.0, 0, 0])
+        self.pos_only = pos_only
+
+    def reset(self, *, seed=None, options=None):
+        # self.state = (sample_non_colliding(sample_state, is_colliding, sample_bounds)).numpy()
+        self.state = np.array([0,0,0,0])
+
+        # Compute relative dist to goal and obstacle
+        goal_dist = self.goal - self.state
+        obs_dist = self.obs - self.state
+
+        self.state = np.concatenate([self.state, obs_dist, goal_dist])
+        return self.state, {}
+    
+    def step(self, action):
+        '''
+        Ensure action is numpy array!
+        '''
+        next_state, reward, done = step(self.state[:4], action, reward_fn=self.reward, position_only=self.pos_only)
+
+        self.state = next_state.numpy()
+
+        # Compute relative dist to goal and obstacle
+        goal_dist = self.goal - self.state
+        obs_dist = self.obs - self.state
+
+        self.state = np.concatenate([self.state, obs_dist, goal_dist])
+
+        return self.state, reward, done, False, {}
+    
+    def render(self):
+        if self.render_mode == 'human':
+            self.viewer.render()
+
+    def close(self):
+        if self.viewer:
+            self.viewer.close()
+
 
 SavedAction = namedtuple('SavedAction', ['log_prob', 'value'])
 
 class ActorCritic(nn.Module):
-    def __init__(self, obs_dim, act_dim, hidden_dim) -> None:
+    def __init__(self, obs_dim, act_dim, hidden_dim, scale=1) -> None:
         super(ActorCritic, self).__init__()
 
         self.layer1 = nn.Linear(obs_dim, hidden_dim)
@@ -75,15 +130,16 @@ class ActorCritic(nn.Module):
         self.saved_actions = []
         self.rewards = []
         self.act_dim = act_dim
+        self.scale = scale
 
     def forward(self, state):
         '''
         Returns action distribution (normal) and state value
         '''
-        x = F.relu(self.layer1(state))
+        x = F.sigmoid(self.layer1(state))
         
         # Get action:
-        action_out = self.action_head(x)
+        action_out = F.tanh(self.action_head(x)) * self.scale
         mean, log_var = action_out[:self.act_dim], action_out[self.act_dim:]
         log_var = torch.clamp(log_var, min=-20, max=2) # For numerical stability!
         std = torch.exp(0.5 * log_var)
@@ -104,21 +160,29 @@ class ActorCritic(nn.Module):
         return action.numpy()
     
 
+    def visualize(self, env, maxsteps = 200):
+        state, _ = env.reset()
+
+        for _ in range(maxsteps):
+            action = model.act(state)
+            state, reward, done, _, _ = env.step(action)
+            env.render()
+            
+            if done:
+                break
+
+
 # Initialize WandB project for keeping track of experiments
-wandb.init(project="rl-agent", config={
-    "env": "CustomEnv",
-    "gamma": 0.99,
-    "learning_rate": 3e-3,
-    "episodes": 1000,
-    "reward_fn": 'dense and nonlinear, scale=0.1 and goal=1/(1-gamma)',
-    "maxsteps": 100,
-    "hidden_dim":56,
-    "seed": 543
-})
+gamma = 0.95
+lr = 1e-4
+episodes = 1000
+maxsteps = 100
+hidden_dim = 128
+
 
 # Initialize model and optimizer:
-model = ActorCritic(4, 2, 56)
-optimizer = optim.Adam(model.parameters(), lr=wandb.config.learning_rate)
+model = ActorCritic(obs_dim=4, act_dim=2, hidden_dim=hidden_dim, scale = 1)
+optimizer = optim.Adam(model.parameters(), lr=lr)
 
 
 def finish_episode(gamma = 0.99):
@@ -143,9 +207,6 @@ def finish_episode(gamma = 0.99):
         gains = (gains - gains.mean()) / (gains.std() + eps)
     else:
         gains = gains - gains.mean()  # Skip std normalization if only one element
-        
-    if torch.isnan(gains).any():  # Debugging check
-        print("NaNs in gains!")
 
     for (lp, val), g in zip(saved_actions, gains):
         adv = g - val.item()
@@ -163,11 +224,9 @@ def finish_episode(gamma = 0.99):
     return ploss, vloss
 
 
-def train(num_episodes = wandb.config.episodes, render=False, log_interval=10, maxsteps=wandb.config.maxsteps):
-    # Create env:
-    env = CustomEnv(reward_fn=dense_reward)
-
+def train(env, num_episodes = episodes, render=False, log_interval=25, maxsteps=maxsteps):
     running_reward = 0
+    successes = 0
     for episode in range(1, num_episodes+1):
         state, _ = env.reset()
         episode_reward = 0
@@ -183,38 +242,66 @@ def train(num_episodes = wandb.config.episodes, render=False, log_interval=10, m
             episode_reward += reward
 
             if done:
+                successes += 1
                 break
         
         # Update running reward
         running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
+        success_rate = successes / episode
 
         # Optimize model
-        policy_loss, value_loss = finish_episode(gamma=wandb.config.gamma)
+        policy_loss, value_loss = finish_episode(gamma=gamma)
 
         # Log to WandB
         wandb.log({
             "episode": episode,
             "running_reward": running_reward,
             "episode_reward": episode_reward,
-            "success": done,
+            "success_rate":  success_rate,
             "policy_loss": policy_loss,
             "value_loss": value_loss
         })
         
-        if log_interval: print(running_reward)
+        if episode % log_interval == 0: print(running_reward)
 
-    
 
 if __name__ == "__main__":
-    # Set random seeds for reproducibility
+    fname = 'test_models/ac.test14.pth'
+    env = CustomEnv(reward_fn=new_reward)
+
+    # Load the model
+    # model.load_state_dict(torch.load(f=fname, weights_only=True))
+
+    wandb.init(project="rl-agent", config={
+    "env": "CustomEnv",
+    "gamma": gamma,
+    "learning_rate": lr,
+    "episodes": episodes,
+    "reward_fn": 'Using new reward function',
+    "maxsteps": maxsteps,
+    "hidden_dim": hidden_dim,
+    "seed": 543,
+    "description": "Back to regular observations and scale"
+    })
+
+    # # Set random seeds for reproducibility
     torch.manual_seed(wandb.config.seed)
     np.random.seed(wandb.config.seed)
     
     # Train the agent
-    train(num_episodes=wandb.config.episodes)
-    
-    # Finish WandB run
+    train(num_episodes=episodes, env=env)
+    torch.save(model.state_dict(), f=fname)
+
+    # # Finish WandB run
     wandb.finish()
+
+
+    for _ in range(5):
+        model.visualize(env=env)
+
+
+
+
 
             
 

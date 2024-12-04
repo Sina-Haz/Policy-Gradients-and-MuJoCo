@@ -1,0 +1,17 @@
+{"time":"2024-12-04T16:18:32.719022-05:00","level":"INFO","msg":"using version","core version":"0.18.7"}
+{"time":"2024-12-04T16:18:32.719101-05:00","level":"INFO","msg":"created symlink","path":"/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/wandb/run-20241204_161832-549no7ua/logs/debug-core.log"}
+{"time":"2024-12-04T16:18:33.037898-05:00","level":"INFO","msg":"created new stream","id":"549no7ua"}
+{"time":"2024-12-04T16:18:33.037961-05:00","level":"INFO","msg":"stream: started","id":"549no7ua"}
+{"time":"2024-12-04T16:18:33.038025-05:00","level":"INFO","msg":"sender: started","stream_id":"549no7ua"}
+{"time":"2024-12-04T16:18:33.038047-05:00","level":"INFO","msg":"handler: started","stream_id":"549no7ua"}
+{"time":"2024-12-04T16:18:33.03814-05:00","level":"INFO","msg":"writer: Do: started","stream_id":"549no7ua"}
+{"time":"2024-12-04T16:18:36.411694-05:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2024-12-04T16:19:26.010604-05:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2024-12-04T16:19:26.010985-05:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2024-12-04T16:19:27.01258-05:00","level":"INFO","msg":"handler: operation stats","stats":{"operations":[{"desc":"saving job artifact","runtime_seconds":0.259847042},{"desc":"uploading config.yaml","runtime_seconds":0.067564875,"progress":"796B/796B"},{"desc":"uploading output.log","runtime_seconds":0.067524125,"progress":"746B/746B"}],"total_operations":3}}
+{"time":"2024-12-04T16:19:30.026309-05:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2024-12-04T16:19:31.340215-05:00","level":"INFO","msg":"stream: closing","id":"549no7ua"}
+{"time":"2024-12-04T16:19:31.34025-05:00","level":"INFO","msg":"handler: closed","stream_id":"549no7ua"}
+{"time":"2024-12-04T16:19:31.34027-05:00","level":"INFO","msg":"sender: closed","stream_id":"549no7ua"}
+{"time":"2024-12-04T16:19:31.340264-05:00","level":"INFO","msg":"writer: Close: closed","stream_id":"549no7ua"}
+{"time":"2024-12-04T16:19:31.340402-05:00","level":"INFO","msg":"stream: closed","id":"549no7ua"}

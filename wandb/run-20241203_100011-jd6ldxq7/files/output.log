@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 293, in <module>
+    train(num_episodes=episodes)
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 228, in train
+    env = CustomEnv2(reward_fn=reward, pos_only=True)
+                               ^^^^^^
+UnboundLocalError: cannot access local variable 'reward' where it is not associated with a value

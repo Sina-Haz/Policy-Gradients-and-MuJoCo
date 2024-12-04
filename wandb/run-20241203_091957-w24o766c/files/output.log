@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 287, in <module>
+    train(num_episodes=episodes)
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 232, in train
+    state, reward, done, _, _ = env.step(action)
+                                ^^^^^^^^^^^^^^^^
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 95, in step
+    next_state, reward, done = step(self.state, action, reward_fn=self.reward)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/testbed.py", line 19, in step
+    next_state, collided = transition(state, action)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/utils.py", line 82, in transition
+    data.qvel[:] = qdot.copy()
+    ~~~~~~~~~^^^
+ValueError: could not broadcast input array from shape (10,) into shape (2,)

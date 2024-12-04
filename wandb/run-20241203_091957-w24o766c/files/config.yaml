@@ -1,0 +1,42 @@
+_wandb:
+    value:
+        cli_version: 0.18.7
+        m: []
+        python_version: 3.11.6
+        t:
+            "1":
+                - 1
+                - 55
+                - 105
+            "2":
+                - 1
+                - 55
+                - 105
+            "3":
+                - 16
+                - 23
+                - 55
+            "4": 3.11.6
+            "5": 0.18.7
+            "8":
+                - 5
+            "12": 0.18.7
+            "13": darwin-arm64
+description:
+    value: Trying expanded observation with relative goal and obstacle distance added
+env:
+    value: CustomEnv2
+episodes:
+    value: 1000
+gamma:
+    value: 0.95
+hidden_dim:
+    value: 256
+learning_rate:
+    value: 0.0001
+maxsteps:
+    value: 100
+reward_fn:
+    value: dense and nonlinear, scale=10 and goal=5 * (1/(1-gamma)). Rewards are normalized
+seed:
+    value: 543

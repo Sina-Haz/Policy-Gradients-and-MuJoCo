@@ -1,0 +1,18 @@
+{"time":"2024-12-03T09:53:47.404755-05:00","level":"INFO","msg":"using version","core version":"0.18.7"}
+{"time":"2024-12-03T09:53:47.404847-05:00","level":"INFO","msg":"created symlink","path":"/Users/shazeghi/Documents/Comp_Robotics/advanced_robotics/actor_critic/wandb/run-20241203_095347-1ipneez7/logs/debug-core.log"}
+{"time":"2024-12-03T09:53:47.519354-05:00","level":"INFO","msg":"created new stream","id":"1ipneez7"}
+{"time":"2024-12-03T09:53:47.519431-05:00","level":"INFO","msg":"stream: started","id":"1ipneez7"}
+{"time":"2024-12-03T09:53:47.519655-05:00","level":"INFO","msg":"handler: started","stream_id":"1ipneez7"}
+{"time":"2024-12-03T09:53:47.519725-05:00","level":"INFO","msg":"sender: started","stream_id":"1ipneez7"}
+{"time":"2024-12-03T09:53:47.519722-05:00","level":"INFO","msg":"writer: Do: started","stream_id":"1ipneez7"}
+{"time":"2024-12-03T09:53:48.020553-05:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2024-12-03T09:54:03.540025-05:00","level":"INFO","msg":"api: retrying error","error":"Post \"https://api.wandb.ai/files/shazeghi-rutgers-university/rl-agent/1ipneez7/file_stream\": read tcp 10.74.140.197:57636->35.186.228.49:443: read: connection reset by peer"}
+{"time":"2024-12-03T09:54:33.748805-05:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2024-12-03T09:54:33.749549-05:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2024-12-03T09:54:34.158394-05:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2024-12-03T09:54:34.250833-05:00","level":"INFO","msg":"handler: operation stats","stats":{}}
+{"time":"2024-12-03T09:54:35.268613-05:00","level":"INFO","msg":"stream: closing","id":"1ipneez7"}
+{"time":"2024-12-03T09:54:35.268674-05:00","level":"INFO","msg":"handler: closed","stream_id":"1ipneez7"}
+{"time":"2024-12-03T09:54:35.268694-05:00","level":"INFO","msg":"writer: Close: closed","stream_id":"1ipneez7"}
+{"time":"2024-12-03T09:54:35.268706-05:00","level":"INFO","msg":"sender: closed","stream_id":"1ipneez7"}
+{"time":"2024-12-03T09:54:35.268997-05:00","level":"INFO","msg":"stream: closed","id":"1ipneez7"}
