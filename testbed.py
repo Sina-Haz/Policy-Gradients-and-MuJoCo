@@ -1,4 +1,5 @@
-from collections import namedtuple
+from collections import namedtuple, deque
+from itertools import count
 from torch.distributions import Normal
 import torch.nn as nn
 import torch.optim as optim
@@ -11,6 +12,7 @@ import wandb
 
 # Smallest possible epsilon value for nonzero division
 eps = 1e-10
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def step(state, action, reward_fn = reward, position_only = False):
     '''
@@ -110,7 +112,7 @@ class CustomEnv2(gym.Env):
     
     def render(self):
         if self.render_mode == 'human':
-            self.viewer.render()
+           self.viewer.render()
 
     def close(self):
         if self.viewer:
@@ -132,6 +134,7 @@ class ActorCritic(nn.Module):
         self.act_dim = act_dim
         self.scale = scale
 
+
     def forward(self, state):
         '''
         Returns action distribution (normal) and state value
@@ -151,13 +154,13 @@ class ActorCritic(nn.Module):
         return distr, value
     
     def act(self, state):
-        state = torch.from_numpy(state).float()
+        state = torch.from_numpy(state).float().to(device)
         norm_distr, val = self(state)
         action = torch.clamp(norm_distr.sample(),-1, 1) # Makes sure action is within valid range
         lp = norm_distr.log_prob(action).sum(dim=-1)
 
         self.saved_actions.append(SavedAction(lp, val))
-        return action.numpy()
+        return action.cpu().numpy()
     
 
     def visualize(self, env, maxsteps = 200):
@@ -177,11 +180,12 @@ gamma = 0.95
 lr = 1e-4
 episodes = 1000
 maxsteps = 100
-hidden_dim = 128
+hidden_dim = 256
+episodes = 500_000
 
 
 # Initialize model and optimizer:
-model = ActorCritic(obs_dim=4, act_dim=2, hidden_dim=hidden_dim, scale = 1)
+model = ActorCritic(obs_dim=4, act_dim=2, hidden_dim=hidden_dim, scale = 1).to(device)
 optimizer = optim.Adam(model.parameters(), lr=lr)
 
 
@@ -200,7 +204,7 @@ def finish_episode(gamma = 0.99):
         R = r + gamma * R
         gains.insert(0, R)
 
-    gains = torch.tensor(gains)
+    gains = torch.tensor(gains).to(device)
 
     # Normalize gains
     if gains.numel() > 1:
@@ -208,15 +212,17 @@ def finish_episode(gamma = 0.99):
     else:
         gains = gains - gains.mean()  # Skip std normalization if only one element
 
-    for (lp, val), g in zip(saved_actions, gains):
-        adv = g - val.item()
-        policy_losses.append(-lp * adv)
-        value_losses.append(F.smooth_l1_loss(val, g.detach().unsqueeze(0)))
-    
+    log_probs = torch.stack([action.log_prob for action in saved_actions])
+    vals = torch.stack([action.value for action in saved_actions])
+
+    advantage = gains - vals.squeeze()
+    ploss = (-log_probs * advantage.detach()).sum()
+    vloss = F.smooth_l1_loss(vals, gains.unsqueeze(1))
+
     optimizer.zero_grad()
-    ploss, vloss = torch.stack(policy_losses).sum(), torch.stack(value_losses).sum()
     loss = ploss + vloss
     loss.backward()
+    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
     optimizer.step()
     del model.rewards[:]
     del model.saved_actions[:]
@@ -224,12 +230,16 @@ def finish_episode(gamma = 0.99):
     return ploss, vloss
 
 
-def train(env, num_episodes = episodes, render=False, log_interval=25, maxsteps=maxsteps):
+def train(env, num_episodes = episodes, render=False, log_interval=50, maxsteps=maxsteps, path=None):
     running_reward = 0
     successes = 0
-    for episode in range(1, num_episodes+1):
+    recent_successes = deque(maxlen=log_interval*4)
+
+
+    for episode in range(1, episodes+1):
         state, _ = env.reset()
         episode_reward = 0
+        success=False
 
         for t in range(maxsteps): # Don't infinite loop while learning
             action = model.act(state)
@@ -242,32 +252,43 @@ def train(env, num_episodes = episodes, render=False, log_interval=25, maxsteps=
             episode_reward += reward
 
             if done:
+                success=True
                 successes += 1
                 break
         
         # Update running reward
         running_reward = 0.05 * episode_reward + (1 - 0.05) * running_reward
-        success_rate = successes / episode
+
+        # Update total and recent success rate:
+        total_success_rate = successes / episode
+        recent_successes.append(1 if success else 0)
+        success_rate_recent = sum(recent_successes) / len(recent_successes)
+
 
         # Optimize model
         policy_loss, value_loss = finish_episode(gamma=gamma)
-
-        # Log to WandB
-        wandb.log({
-            "episode": episode,
-            "running_reward": running_reward,
-            "episode_reward": episode_reward,
-            "success_rate":  success_rate,
-            "policy_loss": policy_loss,
-            "value_loss": value_loss
-        })
         
-        if episode % log_interval == 0: print(running_reward)
+        if episode % log_interval == 0:
+            print(running_reward)
+            # Log to WandB
+            wandb.log({
+                "episode": episode,
+                "running_reward": running_reward,
+                "episode_reward": episode_reward,
+                "total success_rate":  total_success_rate,
+                "recent success rate": success_rate_recent,
+                "policy_loss": policy_loss,
+                "value_loss": value_loss
+            })
+        # Save the model every 1000 episodes
+        if episode % 1000 == 0:
+             torch.save(model.state_dict(), f=path or f'model_episode:{episode}.pth')
 
 
 if __name__ == "__main__":
-    fname = 'test_models/ac.test14.pth'
+    fname = 'actor_critic.pth'
     env = CustomEnv(reward_fn=new_reward)
+    print('about to initialize wandb and train')
 
     # Load the model
     # model.load_state_dict(torch.load(f=fname, weights_only=True))
@@ -284,20 +305,20 @@ if __name__ == "__main__":
     "description": "Back to regular observations and scale"
     })
 
-    # # Set random seeds for reproducibility
+    # Set random seeds for reproducibility
     torch.manual_seed(wandb.config.seed)
     np.random.seed(wandb.config.seed)
     
     # Train the agent
-    train(num_episodes=episodes, env=env)
+    train(num_episodes=episodes, env=env, path = fname)
     torch.save(model.state_dict(), f=fname)
 
-    # # Finish WandB run
+    # Finish WandB run
     wandb.finish()
 
 
-    for _ in range(5):
-        model.visualize(env=env)
+   # for _ in range(5):
+    #    model.visualize(env=env)
 
 
 

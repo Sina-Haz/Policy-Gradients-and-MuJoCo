@@ -1,7 +1,7 @@
 import torch 
 from policy import Policy
 import mujoco
-import mujoco_viewer as mjv
+#import mujoco_viewer as mjv
 from typing import Tuple
 import numpy as np
 
@@ -111,16 +111,8 @@ def transition(state: np.ndarray, action: np.ndarray, noise = 0.01) -> Tuple[tor
 
 
 
-def init_viewer() -> mjv.MujocoViewer:
-    # Global viewer for rendering our policy in action
-    viewer = mjv.MujocoViewer(model, data)
-    # Set camera parameters for bird's-eye view
-    viewer.cam.azimuth = 0  # Horizontal angle
-    viewer.cam.elevation = -60  # Directly above, looking down
-    viewer.cam.distance = 2  # Distance from the ground; adjust as needed
-    viewer.cam.lookat[:] = [0.2, 0, 0]  # Center of the scene (adjust if needed)
-
-    return viewer
+def init_viewer():
+    pass
 
 
 def visualize_policy(policy: Policy, max_len = 75):
