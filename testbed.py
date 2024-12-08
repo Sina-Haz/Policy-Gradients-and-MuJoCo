@@ -1,5 +1,4 @@
 from collections import namedtuple, deque
-from itertools import count
 from torch.distributions import Normal
 import torch.nn as nn
 import torch.optim as optim
@@ -9,6 +8,7 @@ import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 import wandb
+
 
 # Smallest possible epsilon value for nonzero division
 eps = 1e-10
@@ -122,10 +122,11 @@ class CustomEnv2(gym.Env):
 SavedAction = namedtuple('SavedAction', ['log_prob', 'value'])
 
 class ActorCritic(nn.Module):
-    def __init__(self, obs_dim, act_dim, hidden_dim, scale=1) -> None:
+    def __init__(self, obs_dim, act_dim, hidden_dim, scale=1, extra_layer=False) -> None:
         super(ActorCritic, self).__init__()
 
         self.layer1 = nn.Linear(obs_dim, hidden_dim)
+        if extra_layer: self.layer2 = nn.Linear(hidden_dim, hidden_dim)
         self.action_head = nn.Linear(hidden_dim, act_dim*2) # output mean and logstd of each 
         self.value_head = nn.Linear(hidden_dim, 1)
 
@@ -139,12 +140,13 @@ class ActorCritic(nn.Module):
         '''
         Returns action distribution (normal) and state value
         '''
-        x = F.sigmoid(self.layer1(state))
+        x = F.relu(self.layer1(state))
+        if self.layer2: x = F.relu(self.layer2(x))
         
         # Get action:
         action_out = F.tanh(self.action_head(x)) * self.scale
         mean, log_var = action_out[:self.act_dim], action_out[self.act_dim:]
-        log_var = torch.clamp(log_var, min=-20, max=2) # For numerical stability!
+        log_var = torch.clamp(log_var, min=-5, max=2) # For numerical stability!
         std = torch.exp(0.5 * log_var)
         distr = Normal(mean, std)
 
@@ -177,27 +179,25 @@ class ActorCritic(nn.Module):
 
 # Initialize WandB project for keeping track of experiments
 gamma = 0.95
-lr = 1e-4
-episodes = 1000
+lr = 1e-3
 maxsteps = 100
 hidden_dim = 256
 episodes = 500_000
 
 
 # Initialize model and optimizer:
-model = ActorCritic(obs_dim=4, act_dim=2, hidden_dim=hidden_dim, scale = 1).to(device)
+model = ActorCritic(obs_dim=4, act_dim=2, hidden_dim=hidden_dim, scale = 0.25, extra_layer=True).to(device)
 optimizer = optim.Adam(model.parameters(), lr=lr)
+scheduler = optim.CosineAnnealingLR(optimizer, T_max=200, eta_min=1e-5)
 
 
-def finish_episode(gamma = 0.99):
+def finish_episode(gamma = gamma):
     '''
     Computes loss and optimizes w.r.t. global model and optimizer
     '''
 
     R = 0
     saved_actions = model.saved_actions
-    policy_losses = []
-    value_losses = []
     gains = []
 
     for r in model.rewards[::-1]:
@@ -224,6 +224,8 @@ def finish_episode(gamma = 0.99):
     loss.backward()
     torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
     optimizer.step()
+    if scheduler: scheduler.step()
+
     del model.rewards[:]
     del model.saved_actions[:]
 
@@ -236,7 +238,7 @@ def train(env, num_episodes = episodes, render=False, log_interval=50, maxsteps=
     recent_successes = deque(maxlen=log_interval*4)
 
 
-    for episode in range(1, episodes+1):
+    for episode in range(1, num_episodes+1):
         state, _ = env.reset()
         episode_reward = 0
         success=False
@@ -284,14 +286,18 @@ def train(env, num_episodes = episodes, render=False, log_interval=50, maxsteps=
         if episode % 1000 == 0:
              torch.save(model.state_dict(), f=path or f'model_episode:{episode}.pth')
 
+        if success_rate_recent > 0.70 and episode > 1000:
+            torch.save(model.state_dict(), f=f'accurate_ac.pth')
+
+
 
 if __name__ == "__main__":
-    fname = 'actor_critic.pth'
+    fname = 'ac_3layer.pth'
     env = CustomEnv(reward_fn=new_reward)
-    print('about to initialize wandb and train')
+    # print('about to initialize wandb and train')
 
     # Load the model
-    # model.load_state_dict(torch.load(f=fname, weights_only=True))
+    # model.load_state_dict(torch.load(f=fname, weights_only=True, map_location=torch.device('cpu')))
 
     wandb.init(project="rl-agent", config={
     "env": "CustomEnv",
@@ -302,7 +308,7 @@ if __name__ == "__main__":
     "maxsteps": maxsteps,
     "hidden_dim": hidden_dim,
     "seed": 543,
-    "description": "Back to regular observations and scale"
+    "description": "Scaled down actions, added an extra layer for complexity, "
     })
 
     # Set random seeds for reproducibility
@@ -317,7 +323,7 @@ if __name__ == "__main__":
     wandb.finish()
 
 
-   # for _ in range(5):
+    # for _ in range(5):
     #    model.visualize(env=env)
 
 
